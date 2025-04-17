@@ -42,7 +42,7 @@ class Lucid {
             Config.load()
 
 
-            System.out.println("[Lucid] Anti-cheat initialized successfully")
+            println("[Lucid] Anti-cheat initialized successfully")
         } catch (e: Exception) {
             System.err.println("[Lucid] Error during initialization: ${e.message}")
             e.printStackTrace()
@@ -62,13 +62,12 @@ class Lucid {
             AutoBlockCheck()
             EagleCheck()
             NoSlowCheck()
-            ReachCheck()
             RotationCheck()
             ScaffoldCheck()
             SprintCheck()
             VelocityCheck()
 
-            System.out.println("[Lucid] Initialized ${CheckManager.allChecks().size} checks")
+            println("[Lucid] Initialized ${CheckManager.allChecks().size} checks")
         } catch (e: Exception) {
             System.err.println("[Lucid] Error initializing checks: ${e.message}")
             e.printStackTrace()

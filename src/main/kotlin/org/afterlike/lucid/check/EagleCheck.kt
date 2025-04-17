@@ -18,6 +18,8 @@ class EagleCheck : Check() {
     private val lastPositions = mutableMapOf<EntityPlayer, Pair<Double, Double>>()
     private val lastMoveYaw = mutableMapOf<EntityPlayer, Float>()
     private val crouchDurations = mutableMapOf<EntityPlayer, MutableList<Int>>()
+    private var lastCleanupTime = System.currentTimeMillis()
+    private val CLEANUP_INTERVAL = 30000L
 
     init {
         CheckManager.register(this)
@@ -27,6 +29,12 @@ class EagleCheck : Check() {
     override fun onUpdate(target: EntityPlayer) {
         val mc = Minecraft.getMinecraft()
         val tick = mc.theWorld.totalWorldTime.toInt()
+        val currentTime = System.currentTimeMillis()
+        
+        if (currentTime - lastCleanupTime > CLEANUP_INTERVAL) {
+            cleanupOldData()
+            lastCleanupTime = currentTime
+        }
 
         if (target === mc.thePlayer) return
 
@@ -147,5 +155,57 @@ class EagleCheck : Check() {
         } else if (getPlayerVL(target) > 0) {
             decayVL(target, 0.1)
         }
+    }
+    
+    private fun cleanupOldData() {
+        try {
+            val mc = Minecraft.getMinecraft()
+            val worldPlayers = mc.theWorld?.playerEntities ?: listOf()
+            
+            val allPlayers = mutableSetOf<EntityPlayer>()
+            allPlayers.addAll(worldPlayers)
+            
+            val toRemove = mutableSetOf<EntityPlayer>()
+            lastCrouchStart.keys.forEach { if (!allPlayers.contains(it)) toRemove.add(it) }
+            lastCrouchEnd.keys.forEach { if (!allPlayers.contains(it)) toRemove.add(it) }
+            wasSneaking.keys.forEach { if (!allPlayers.contains(it)) toRemove.add(it) }
+            lastSwingTick.keys.forEach { if (!allPlayers.contains(it)) toRemove.add(it) }
+            patternCount.keys.forEach { if (!allPlayers.contains(it)) toRemove.add(it) }
+            lastPatternTick.keys.forEach { if (!allPlayers.contains(it)) toRemove.add(it) }
+            lastPositions.keys.forEach { if (!allPlayers.contains(it)) toRemove.add(it) }
+            lastMoveYaw.keys.forEach { if (!allPlayers.contains(it)) toRemove.add(it) }
+            crouchDurations.keys.forEach { if (!allPlayers.contains(it)) toRemove.add(it) }
+            
+            toRemove.forEach { onPlayerRemove(it) }
+            
+        } catch (e: Exception) {
+            logError("Error cleaning up eagle data: ${e.message}")
+        }
+    }
+    
+    override fun onPlayerRemove(player: EntityPlayer?) {
+        if (player != null) {
+            lastCrouchStart.remove(player)
+            lastCrouchEnd.remove(player)
+            wasSneaking.remove(player)
+            lastSwingTick.remove(player)
+            patternCount.remove(player)
+            lastPatternTick.remove(player)
+            lastPositions.remove(player)
+            lastMoveYaw.remove(player)
+            crouchDurations.remove(player)
+        } else {
+            lastCrouchStart.clear()
+            lastCrouchEnd.clear()
+            wasSneaking.clear()
+            lastSwingTick.clear()
+            patternCount.clear()
+            lastPatternTick.clear()
+            lastPositions.clear()
+            lastMoveYaw.clear()
+            crouchDurations.clear()
+        }
+        
+        super.onPlayerRemove(player)
     }
 }

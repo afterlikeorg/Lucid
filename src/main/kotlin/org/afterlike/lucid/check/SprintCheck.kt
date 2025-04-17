@@ -7,6 +7,10 @@ import kotlin.math.max
 class SprintCheck : Check() {
     override val name = "Sprint"
     override val description = "Detects omnidirectional sprinting (backwards/sideways)"
+    
+    private val playerData = mutableMapOf<EntityPlayer, Double>()
+    private var lastCleanupTime = System.currentTimeMillis()
+    private val CLEANUP_INTERVAL = 30000L
 
     init {
         CheckManager.register(this)
@@ -15,6 +19,12 @@ class SprintCheck : Check() {
 
     override fun onUpdate(target: EntityPlayer) {
         val mc = net.minecraft.client.Minecraft.getMinecraft()
+        val currentTime = System.currentTimeMillis()
+        
+        if (currentTime - lastCleanupTime > CLEANUP_INTERVAL) {
+            cleanupOldData()
+            lastCleanupTime = currentTime
+        }
 
         if (target == mc.thePlayer || target.ridingEntity != null) return
 
@@ -63,5 +73,37 @@ class SprintCheck : Check() {
         }
 
         return relativeAngle
+    }
+    
+    private fun cleanupOldData() {
+        try {
+            val mc = net.minecraft.client.Minecraft.getMinecraft()
+            val worldPlayers = mc.theWorld?.playerEntities ?: listOf()
+            
+            val toRemove = mutableListOf<EntityPlayer>()
+            playerData.keys.forEach { player ->
+                if (!worldPlayers.contains(player) || !player.isEntityAlive) {
+                    toRemove.add(player)
+                }
+            }
+            
+            toRemove.forEach { player ->
+                playerData.remove(player)
+                onPlayerRemove(player)
+            }
+            
+        } catch (e: Exception) {
+            logError("Error cleaning up sprint data: ${e.message}")
+        }
+    }
+    
+    override fun onPlayerRemove(player: EntityPlayer?) {
+        if (player != null) {
+            playerData.remove(player)
+        } else {
+            playerData.clear()
+        }
+        
+        super.onPlayerRemove(player)
     }
 } 
