@@ -5,7 +5,7 @@ import java.util.concurrent.ConcurrentHashMap
 
 class ScaffoldCheck : Check() {
     override val name = "Scaffold"
-    override val description = "Detects unusual block placement patterns"
+    override val description = "Detects illegal bridging patterns"
 
     private val lastPlacementTime = ConcurrentHashMap<EntityPlayer, Long>()
     private val placementFrequency = ConcurrentHashMap<EntityPlayer, Int>()
