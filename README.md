@@ -1,6 +1,6 @@
 # Lucid AntiCheat
 
-**Lucid AntiCheat** is an advanced Minecraft 1.8.9 Forge mod designed to detect cheaters in your game.
+**Lucid AntiCheat** is an advanced Minecraft 1.8.9 Forge mod designed to detect cheaters in your game. `/lucid` to open the configuration menu.
 
 ## Screenshots
 
