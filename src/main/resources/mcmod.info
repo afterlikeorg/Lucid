@@ -1,0 +1,18 @@
+[
+  {
+    "modid": "${modid}",
+    "name": "Lucid",
+    "description": "Detects cheaters in your game.",
+    "version": "${version}",
+    "mcversion": "${mcversion}",
+    "url": "",
+    "updateUrl": "",
+    "authorList": [
+      "desiyn"
+    ],
+    "credits": "",
+    "logoFile": "",
+    "screenshots": [],
+    "dependencies": []
+  }
+]
