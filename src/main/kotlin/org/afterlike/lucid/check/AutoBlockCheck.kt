@@ -42,13 +42,13 @@ class AutoBlockCheck : Check() {
     private fun cleanupOldData() {
         val mc = net.minecraft.client.Minecraft.getMinecraft()
         val worldPlayers = mc.theWorld?.playerEntities ?: listOf()
-        
+
         val allPlayers = mutableSetOf<EntityPlayer>()
         allPlayers.addAll(worldPlayers)
-        
+
         val toRemove = mutableSetOf<EntityPlayer>()
         swingProgress.keys.forEach { if (!allPlayers.contains(it)) toRemove.add(it) }
-        
+
         toRemove.forEach { onPlayerRemove(it) }
     }
 
@@ -58,7 +58,7 @@ class AutoBlockCheck : Check() {
         } else {
             swingProgress.clear()
         }
-        
+
         super.onPlayerRemove(player)
     }
 } 

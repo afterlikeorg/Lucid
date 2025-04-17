@@ -1,8 +1,6 @@
-package org.afterlike.lucid.check.example
+package org.afterlike.lucid.check
 
 import net.minecraft.entity.player.EntityPlayer
-import org.afterlike.lucid.check.Check
-import org.afterlike.lucid.check.CheckManager
 import java.util.concurrent.ConcurrentHashMap
 
 class ScaffoldCheck : Check() {
@@ -25,14 +23,14 @@ class ScaffoldCheck : Check() {
 
     override fun onPlayerRemove(player: EntityPlayer?) {
 
-            if (player != null) {
+        if (player != null) {
             lastPlacementTime.remove(player)
             placementFrequency.remove(player)
             consistentPlacementAngles.remove(player)
             bridgingStreak.remove(player)
             sneaking.remove(player)
             wasSwinging.remove(player)
-            } else {
+        } else {
             lastPlacementTime.clear()
             placementFrequency.clear()
             consistentPlacementAngles.clear()
@@ -48,7 +46,7 @@ class ScaffoldCheck : Check() {
         try {
             val mc = net.minecraft.client.Minecraft.getMinecraft()
             val currentTime = System.currentTimeMillis()
-            
+
             if (currentTime - lastCleanupTime > CLEANUP_INTERVAL) {
                 cleanupOldData()
                 lastCleanupTime = currentTime
@@ -132,36 +130,36 @@ class ScaffoldCheck : Check() {
             super.onUpdate(target)
         }
     }
-    
+
     private fun cleanupOldData() {
         try {
             val mc = net.minecraft.client.Minecraft.getMinecraft()
             val worldPlayers = mc.theWorld?.playerEntities ?: listOf()
-            
+
             val allPlayers = mutableSetOf<EntityPlayer>()
             allPlayers.addAll(worldPlayers)
-            
+
             val toRemove = mutableSetOf<EntityPlayer>()
-            
-            lastPlacementTime.keys.forEach { player -> 
-                if (!allPlayers.contains(player)) toRemove.add(player) 
+
+            lastPlacementTime.keys.forEach { player ->
+                if (!allPlayers.contains(player)) toRemove.add(player)
             }
-            placementFrequency.keys.forEach { player -> 
-                if (!allPlayers.contains(player)) toRemove.add(player) 
+            placementFrequency.keys.forEach { player ->
+                if (!allPlayers.contains(player)) toRemove.add(player)
             }
-            consistentPlacementAngles.keys.forEach { player -> 
-                if (!allPlayers.contains(player)) toRemove.add(player) 
+            consistentPlacementAngles.keys.forEach { player ->
+                if (!allPlayers.contains(player)) toRemove.add(player)
             }
-            bridgingStreak.keys.forEach { player -> 
-                if (!allPlayers.contains(player)) toRemove.add(player) 
+            bridgingStreak.keys.forEach { player ->
+                if (!allPlayers.contains(player)) toRemove.add(player)
             }
-            sneaking.keys.forEach { player -> 
-                if (!allPlayers.contains(player)) toRemove.add(player) 
+            sneaking.keys.forEach { player ->
+                if (!allPlayers.contains(player)) toRemove.add(player)
             }
-            wasSwinging.keys.forEach { player -> 
-                if (!allPlayers.contains(player)) toRemove.add(player) 
+            wasSwinging.keys.forEach { player ->
+                if (!allPlayers.contains(player)) toRemove.add(player)
             }
-            
+
             toRemove.forEach { player ->
                 onPlayerRemove(player)
             }

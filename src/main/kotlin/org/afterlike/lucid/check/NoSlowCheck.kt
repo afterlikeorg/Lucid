@@ -93,16 +93,16 @@ class NoSlowCheck : Check() {
     private fun cleanupOldData() {
         val mc = net.minecraft.client.Minecraft.getMinecraft()
         val worldPlayers = mc.theWorld?.playerEntities ?: listOf()
-        
+
         val allPlayers = mutableSetOf<EntityPlayer>()
         allPlayers.addAll(worldPlayers)
-        
+
         val toRemove = mutableSetOf<EntityPlayer>()
         lastUsingTick.keys.forEach { if (!allPlayers.contains(it)) toRemove.add(it) }
         lastItemSwapTick.keys.forEach { if (!allPlayers.contains(it)) toRemove.add(it) }
         lastStopUsingTick.keys.forEach { if (!allPlayers.contains(it)) toRemove.add(it) }
         lastUsedItemName.keys.forEach { if (!allPlayers.contains(it)) toRemove.add(it) }
-        
+
         toRemove.forEach { onPlayerRemove(it) }
     }
 
@@ -118,7 +118,7 @@ class NoSlowCheck : Check() {
             lastStopUsingTick.clear()
             lastUsedItemName.clear()
         }
-        
+
         super.onPlayerRemove(player)
     }
 } 

@@ -17,9 +17,6 @@ object CheckManager {
     private val playerDimensions = ConcurrentHashMap<EntityPlayer, Int>()
 
     private var lastProcessedTick = 0L
-    private val TICK_PROCESS_INTERVAL = 1
-
-    private var worldLoaded = false
 
     fun register(check: Check) {
         try {
@@ -33,8 +30,6 @@ object CheckManager {
 
     fun handlePacket(packet: Packet<*>) {
         try {
-            if (!worldLoaded) return
-
             for (check in checks) {
                 try {
                     if (check.enabled) {
@@ -59,16 +54,10 @@ object CheckManager {
             val thePlayer = mc?.thePlayer ?: return
             val theWorld = mc.theWorld ?: return
 
-
-            if (!worldLoaded) worldLoaded = true
-
             val currentTick = theWorld.totalWorldTime
-            if (lastProcessedTick >= currentTick - TICK_PROCESS_INTERVAL) return
             lastProcessedTick = currentTick
 
-
             trackPlayerDimensions(theWorld, thePlayer)
-
 
             for (entity in theWorld.playerEntities) {
                 if (entity !== thePlayer && entity.isEntityAlive) {
@@ -84,7 +73,6 @@ object CheckManager {
                     }
                 }
             }
-
 
             cleanupDisconnectedPlayers(theWorld)
         } catch (e: Exception) {
@@ -148,8 +136,6 @@ object CheckManager {
                     System.err.println("[Lucid] Error cleaning up in check ${check.name}: ${e.message}")
                 }
             }
-
-            worldLoaded = false
         } catch (e: Exception) {
             System.err.println("[Lucid] Error in world unload handler: ${e.message}")
         }

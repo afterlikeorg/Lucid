@@ -62,8 +62,8 @@ class VelocityCheck : Check() {
 
         val prevOn = lastOnGround.getOrDefault(target, true)
         val currOn = target.onGround
-        if (prevOn && target.motionY < -0.1 && !currOn)    lastStartFall[target] = tick
-        if (!prevOn && currOn)                             lastStopFall[target] = tick
+        if (prevOn && target.motionY < -0.1 && !currOn) lastStartFall[target] = tick
+        if (!prevOn && currOn) lastStopFall[target] = tick
         lastOnGround[target] = currOn
 
         pendingHits[target.entityId]?.let { entry ->
@@ -72,7 +72,7 @@ class VelocityCheck : Check() {
                     val dx = target.posX - entry.startPos.first
                     val dy = target.posY - entry.startPos.second
                     val dz = target.posZ - entry.startPos.third
-                    val horizontalDist = sqrt(dx*dx + dz*dz)
+                    val horizontalDist = sqrt(dx * dx + dz * dz)
                     val verticalDist = abs(dy)
 
                     val expectedH = if (entry.startMotionH <= MOVEMENT_THRESHOLD)
@@ -87,7 +87,7 @@ class VelocityCheck : Check() {
                             target,
                             vlToAdd,
                             "reduced horizontal knockback: moved=${"%.3f".format(horizontalDist)} " +
-                                    "(expected>=${"%.3f".format(expectedH)}, ${"%.0f".format(ratio*100)}%)"
+                                    "(expected>=${"%.3f".format(expectedH)}, ${"%.0f".format(ratio * 100)}%)"
                         )
                     }
 
@@ -98,7 +98,7 @@ class VelocityCheck : Check() {
                             target,
                             vlToAddV,
                             "reduced vertical knockback: moved=${"%.3f".format(verticalDist)} " +
-                                    "(expected>=${"%.3f".format(MIN_KNOCKBACK_V)}, ${"%.0f".format(ratioV*100)}%)"
+                                    "(expected>=${"%.3f".format(MIN_KNOCKBACK_V)}, ${"%.0f".format(ratioV * 100)}%)"
                         )
                     }
                 }
@@ -127,8 +127,8 @@ class VelocityCheck : Check() {
         val world = player.worldObj
         val pos = player.position
         val offsets = listOf(
-            BlockPos(0,0,1), BlockPos(0,0,-1),
-            BlockPos(1,0,0), BlockPos(-1,0,0)
+            BlockPos(0, 0, 1), BlockPos(0, 0, -1),
+            BlockPos(1, 0, 0), BlockPos(-1, 0, 0)
         )
         for (off in offsets) {
             val side = pos.add(off)

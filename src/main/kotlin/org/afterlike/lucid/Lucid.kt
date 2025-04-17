@@ -7,7 +7,6 @@ import net.minecraftforge.fml.common.event.FMLInitializationEvent
 import net.minecraftforge.fml.common.event.FMLPreInitializationEvent
 import net.minecraftforge.fml.common.event.FMLServerStoppingEvent
 import org.afterlike.lucid.check.*
-import org.afterlike.lucid.check.example.ScaffoldCheck
 import org.afterlike.lucid.command.LucidCommand
 import org.afterlike.lucid.event.EventHandler
 import org.afterlike.lucid.util.Config
@@ -21,26 +20,20 @@ class Lucid {
 
     @Mod.EventHandler
     fun preInit(event: FMLPreInitializationEvent) {
-
         MinecraftForge.EVENT_BUS.register(this)
     }
 
     @Mod.EventHandler
     fun init(event: FMLInitializationEvent) {
         try {
-
             val eventHandler = EventHandler()
             eventHandler.registerEvents()
 
-
             ClientCommandHandler.instance.registerCommand(LucidCommand())
-
 
             initChecks()
 
-
             Config.load()
-
 
             println("[Lucid] Anti-cheat initialized successfully")
         } catch (e: Exception) {
@@ -51,7 +44,6 @@ class Lucid {
 
     @Mod.EventHandler
     fun onServerStopping(event: FMLServerStoppingEvent) {
-
         Config.save()
     }
 
@@ -59,15 +51,37 @@ class Lucid {
         try {
             System.out.println("[Lucid] Initializing checks...")
 
-            AutoBlockCheck()
-            EagleCheck()
-            NoSlowCheck()
-            RotationCheck()
-            ScaffoldCheck()
-            SprintCheck()
-            VelocityCheck()
+            val checks = listOf(
+                { AutoBlockCheck() },
+                { EagleCheck() },
+                { NoSlowCheck() },
+                { RotationCheck() },
+                { ScaffoldCheck() },
+                { SprintCheck() },
+                { VelocityCheck() }
+            )
 
-            println("[Lucid] Initialized ${CheckManager.allChecks().size} checks")
+            var initializedCount = 0
+            for (checkInitializer in checks) {
+                try {
+                    checkInitializer()
+                    initializedCount++
+                } catch (e: Exception) {
+                    System.err.println("[Lucid] Failed to initialize a check: ${e.message}")
+                    e.printStackTrace()
+                }
+            }
+
+            println("[Lucid] Initialized $initializedCount/${checks.size} checks")
+
+            if (initializedCount < checks.size) {
+                println("[Lucid] WARNING: Some checks failed to initialize!")
+            }
+
+            if (CheckManager.allChecks().isEmpty()) {
+                println("[Lucid] CRITICAL ERROR: No checks were registered!")
+            }
+
         } catch (e: Exception) {
             System.err.println("[Lucid] Error initializing checks: ${e.message}")
             e.printStackTrace()

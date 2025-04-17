@@ -30,7 +30,7 @@ class EagleCheck : Check() {
         val mc = Minecraft.getMinecraft()
         val tick = mc.theWorld.totalWorldTime.toInt()
         val currentTime = System.currentTimeMillis()
-        
+
         if (currentTime - lastCleanupTime > CLEANUP_INTERVAL) {
             cleanupOldData()
             lastCleanupTime = currentTime
@@ -156,15 +156,15 @@ class EagleCheck : Check() {
             decayVL(target, 0.1)
         }
     }
-    
+
     private fun cleanupOldData() {
         try {
             val mc = Minecraft.getMinecraft()
             val worldPlayers = mc.theWorld?.playerEntities ?: listOf()
-            
+
             val allPlayers = mutableSetOf<EntityPlayer>()
             allPlayers.addAll(worldPlayers)
-            
+
             val toRemove = mutableSetOf<EntityPlayer>()
             lastCrouchStart.keys.forEach { if (!allPlayers.contains(it)) toRemove.add(it) }
             lastCrouchEnd.keys.forEach { if (!allPlayers.contains(it)) toRemove.add(it) }
@@ -175,14 +175,14 @@ class EagleCheck : Check() {
             lastPositions.keys.forEach { if (!allPlayers.contains(it)) toRemove.add(it) }
             lastMoveYaw.keys.forEach { if (!allPlayers.contains(it)) toRemove.add(it) }
             crouchDurations.keys.forEach { if (!allPlayers.contains(it)) toRemove.add(it) }
-            
+
             toRemove.forEach { onPlayerRemove(it) }
-            
+
         } catch (e: Exception) {
             logError("Error cleaning up eagle data: ${e.message}")
         }
     }
-    
+
     override fun onPlayerRemove(player: EntityPlayer?) {
         if (player != null) {
             lastCrouchStart.remove(player)
@@ -205,7 +205,7 @@ class EagleCheck : Check() {
             lastMoveYaw.clear()
             crouchDurations.clear()
         }
-        
+
         super.onPlayerRemove(player)
     }
 }
