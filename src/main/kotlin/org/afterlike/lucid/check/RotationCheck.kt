@@ -105,7 +105,7 @@ class RotationCheck : Check() {
             if (flagged) {
                 addVL(target, vlAmount, reason)
             } else {
-                decayVL(target, 0.1)
+                decayVL(target, 1.0)
             }
         } catch (e: Exception) {
             super.onUpdate(target)
