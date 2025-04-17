@@ -57,6 +57,7 @@ class Lucid {
                 { NoSlowCheck() },
                 { RotationCheck() },
                 { ScaffoldCheck() },
+                { ScaffoldS4Check() },
                 { SprintCheck() },
                 { VelocityCheck() }
             )
