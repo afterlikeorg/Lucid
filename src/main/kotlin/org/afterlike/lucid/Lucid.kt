@@ -10,6 +10,7 @@ import org.afterlike.lucid.check.*
 import org.afterlike.lucid.command.LucidCommand
 import org.afterlike.lucid.event.EventHandler
 import org.afterlike.lucid.util.Config
+import org.afterlike.lucid.util.TPSTracker
 
 @Mod(modid = "lucid", useMetadata = true)
 class Lucid {
@@ -21,6 +22,7 @@ class Lucid {
     @Mod.EventHandler
     fun preInit(event: FMLPreInitializationEvent) {
         MinecraftForge.EVENT_BUS.register(this)
+        MinecraftForge.EVENT_BUS.register(TPSTracker)
     }
 
     @Mod.EventHandler
@@ -57,7 +59,6 @@ class Lucid {
                 { NoSlowCheck() },
                 { RotationCheck() },
                 { ScaffoldCheck() },
-                { ScaffoldS4Check() },
                 { SprintCheck() },
                 { VelocityCheck() }
             )

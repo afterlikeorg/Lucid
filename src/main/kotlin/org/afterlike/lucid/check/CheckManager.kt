@@ -17,6 +17,8 @@ object CheckManager {
     private val playerDimensions = ConcurrentHashMap<EntityPlayer, Int>()
 
     private var lastProcessedTick = 0L
+    
+    private val mc = Minecraft.getMinecraft()
 
     fun register(check: Check) {
         try {
@@ -50,8 +52,7 @@ object CheckManager {
 
             if (event.phase != TickEvent.Phase.END) return
 
-            val mc = Minecraft.getMinecraft()
-            val thePlayer = mc?.thePlayer ?: return
+            val thePlayer = mc.thePlayer ?: return
             val theWorld = mc.theWorld ?: return
 
             val currentTick = theWorld.totalWorldTime
@@ -61,6 +62,7 @@ object CheckManager {
 
             for (entity in theWorld.playerEntities) {
                 if (entity !== thePlayer && entity.isEntityAlive) {
+                    PlayerDataManager.collectSample(entity)
 
                     for (check in checks) {
                         if (check.enabled) {
@@ -103,6 +105,7 @@ object CheckManager {
         try {
             val player = event.player
             if (player != null) {
+                PlayerDataManager.removePlayer(player)
 
                 for (check in checks) {
                     try {
@@ -124,13 +127,12 @@ object CheckManager {
 
             if (!event.world.isRemote) return
 
-
             playerDimensions.clear()
-
+            
+            PlayerDataManager.removePlayer(null)
 
             for (check in checks) {
                 try {
-
                     check.onPlayerRemove(null)
                 } catch (e: Exception) {
                     System.err.println("[Lucid] Error cleaning up in check ${check.name}: ${e.message}")
@@ -142,6 +144,9 @@ object CheckManager {
     }
 
     private fun onPlayerDimensionChange(player: EntityPlayer) {
+        // Reset player data on dimension change
+        PlayerDataManager.removePlayer(player)
+        
         for (check in checks) {
             try {
                 if (check.enabled) {
@@ -159,8 +164,9 @@ object CheckManager {
 
             val playersToRemove = playerDimensions.keys.filter { !playerEntities.contains(it) }
 
-
             for (player in playersToRemove) {
+                PlayerDataManager.removePlayer(player)
+                
                 for (check in checks) {
                     try {
                         check.onPlayerRemove(player)

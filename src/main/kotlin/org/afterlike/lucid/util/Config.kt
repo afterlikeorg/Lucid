@@ -13,6 +13,13 @@ object Config {
     var playSoundOnFlag: Boolean = true
     var verboseMode: Boolean = false
     var flagCooldown: Int = 5
+    
+    // Message format settings
+    var messageColor: String = "3" // Default cyan color
+    var messageBold: Boolean = false
+    var messageSymbol: String = ">" // Alternative: "»"
+    var showVLInFlag: Boolean = false
+    var showWDR: Boolean = true
 
     private val configFile by lazy {
         try {
@@ -43,6 +50,13 @@ object Config {
                     playSoundOnFlag = getProperty("playSoundOnFlag", true)
                     verboseMode = getProperty("verboseMode", false)
                     flagCooldown = getProperty("flagCooldown", 5)
+                    
+                    // Load message format settings
+                    messageColor = getProperty("messageColor", "3")
+                    messageBold = getProperty("messageBold", false)
+                    messageSymbol = getProperty("messageSymbol", ">")
+                    showVLInFlag = getProperty("showVLInFlag", false)
+                    showWDR = getProperty("showWDR", true)
 
 
                     CheckManager.allChecks().forEach { check ->
@@ -77,6 +91,13 @@ object Config {
                 properties.setProperty("playSoundOnFlag", playSoundOnFlag.toString())
                 properties.setProperty("verboseMode", verboseMode.toString())
                 properties.setProperty("flagCooldown", flagCooldown.toString())
+                
+                // Save message format settings
+                properties.setProperty("messageColor", messageColor)
+                properties.setProperty("messageBold", messageBold.toString())
+                properties.setProperty("messageSymbol", messageSymbol)
+                properties.setProperty("showVLInFlag", showVLInFlag.toString())
+                properties.setProperty("showWDR", showWDR.toString())
 
 
                 CheckManager.allChecks().forEach { check ->
@@ -103,6 +124,13 @@ object Config {
         playSoundOnFlag = true
         verboseMode = false
         flagCooldown = 5
+        
+        // Reset message format settings
+        messageColor = "3"
+        messageBold = false
+        messageSymbol = ">"
+        showVLInFlag = false
+        showWDR = true
 
 
         properties.clear()
@@ -132,6 +160,15 @@ object Config {
             defaultValue
         }
     }
+    
+    private fun getProperty(key: String, defaultValue: String): String {
+        return try {
+            properties.getProperty(key, defaultValue)
+        } catch (e: Exception) {
+            logError("Error parsing string property $key: ${e.message}")
+            defaultValue
+        }
+    }
 
     private fun logError(message: String) {
         try {
@@ -139,5 +176,11 @@ object Config {
         } catch (e: Exception) {
 
         }
+    }
+    
+    // Get formatted prefix for chat messages
+    fun getFormattedPrefix(): String {
+        val boldCode = if (messageBold) "§l" else ""
+        return "§${messageColor}$boldCode" + "Lucid §8" + messageSymbol + " "
     }
 } 

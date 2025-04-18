@@ -7,6 +7,7 @@ import net.minecraft.event.HoverEvent
 import net.minecraft.network.Packet
 import net.minecraft.util.ChatComponentText
 import net.minecraft.util.ChatStyle
+import net.minecraft.util.MathHelper
 import org.afterlike.lucid.util.Config
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
@@ -26,13 +27,12 @@ abstract class Check {
 
     private val MAX_PLAYERS_TRACKED = 100
 
-    private var lastTickProcessed = 0L
+    protected val mc: Minecraft = Minecraft.getMinecraft()
 
     open fun onPacket(packet: Packet<*>) {
         try {
 
         } catch (e: Exception) {
-
             logError("Error processing packet in ${name}: ${e.message}")
         }
     }
@@ -41,19 +41,16 @@ abstract class Check {
         try {
 
         } catch (e: Exception) {
-
             logError("Error updating ${name} for ${target.name}: ${e.message}")
         }
     }
 
     open fun onPlayerRemove(player: EntityPlayer?) {
         try {
-
             if (player != null) {
                 lastFlagTimes.remove(player.uniqueID)
                 playerVLs.remove(player.uniqueID)
             } else {
-
                 playerVLs.clear()
                 lastFlagTimes.clear()
             }
@@ -77,28 +74,22 @@ abstract class Check {
         if (!enabled) return
 
         try {
-
             val currentVL = getPlayerVL(player)
             val newVL = currentVL + amount
 
-
             setPlayerVL(player, newVL)
-
 
             lastDebugInfo = reason
 
-
             if (Config.verboseMode) {
-
                 val displayName = player.displayName?.formattedText ?: player.name
 
                 val verboseMsg =
-                    "§3Lucid §8> §cVerbose: $displayName §7failed §f$name §7($reason) [VL: +$amount, Total: ${
+                    "${Config.getFormattedPrefix()}§cVerbose: $displayName §7failed §f$name §7($reason) [VL: +$amount, Total: ${
                         "%.1f".format(newVL)
                     }]"
                 sendMessage(verboseMsg)
             }
-
 
             if (newVL >= vlThreshold) {
                 flag(player, reason)
@@ -128,27 +119,28 @@ abstract class Check {
             val cooldownMillis = Config.flagCooldown * 1000L
 
             if (currentTime - lastFlagTime >= cooldownMillis) {
-
                 val displayName = player.displayName?.formattedText ?: player.name
                 val regularName = player.name
 
                 try {
-                    val messageBase = ChatComponentText("§3Lucid §8> $displayName §7failed §b$name")
-                    val wdrButton = ChatComponentText(" §c[WDR]")
-                    val wdrStyle = ChatStyle()
-                        .setChatClickEvent(ClickEvent(ClickEvent.Action.RUN_COMMAND, "/wdr $regularName cheating"))
-                        .setChatHoverEvent(
-                            HoverEvent(
-                                HoverEvent.Action.SHOW_TEXT,
-                                ChatComponentText("§bClick to report $displayName §bfor cheating")
+                    val vlText = if (Config.showVLInFlag) " §7[VL: ${vlThreshold}]" else ""
+                    val messageBase = ChatComponentText("${Config.getFormattedPrefix()}$displayName §7failed §${Config.messageColor}$name$vlText")
+                    
+                    if (Config.showWDR) {
+                        val wdrButton = ChatComponentText(" §c[WDR]")
+                        val wdrStyle = ChatStyle()
+                            .setChatClickEvent(ClickEvent(ClickEvent.Action.RUN_COMMAND, "/wdr $regularName cheating"))
+                            .setChatHoverEvent(
+                                HoverEvent(
+                                    HoverEvent.Action.SHOW_TEXT,
+                                    ChatComponentText("§bClick to report $displayName §bfor cheating")
+                                )
                             )
-                        )
-                    wdrButton.chatStyle = wdrStyle
+                        wdrButton.chatStyle = wdrStyle
+                        messageBase.appendSibling(wdrButton)
+                    }
 
-                    messageBase.appendSibling(wdrButton)
-
-                    val mc = Minecraft.getMinecraft()
-                    if (mc?.thePlayer != null) {
+                    if (mc.thePlayer != null) {
                         mc.thePlayer.addChatMessage(messageBase)
 
                         if (Config.playSoundOnFlag) {
@@ -156,23 +148,20 @@ abstract class Check {
                         }
                     }
                 } catch (e: Exception) {
-                    sendMessage("§3Lucid §8> $displayName §7failed §d$name")
+                    sendMessage("${Config.getFormattedPrefix()}$displayName §7failed §${Config.messageColor}$name")
                     logError("Error sending chat components: ${e.message}")
                 }
 
-
                 lastFlagTimes[uuid] = currentTime
-
 
                 if (lastFlagTimes.size > MAX_PLAYERS_TRACKED) {
                     cleanupOldEntries()
                 }
             } else if (Config.verboseMode) {
-
                 val remainingCooldown = (cooldownMillis - (currentTime - lastFlagTime)) / 1000
                 val displayName = player.displayName?.formattedText ?: player.name
                 val cooldownMsg =
-                    "§3Lucid §8> §cVerbose: $displayName §7failed §f$name §7- Suppressed (${remainingCooldown}s cooldown)"
+                    "${Config.getFormattedPrefix()}§cVerbose: $displayName §7failed §f$name §7- Suppressed (${remainingCooldown}s cooldown)"
                 sendMessage(cooldownMsg)
             }
         } catch (e: Exception) {
@@ -182,7 +171,6 @@ abstract class Check {
 
     private fun cleanupOldEntries() {
         try {
-
             val currentTime = System.currentTimeMillis()
             val entriesToRemove = lastFlagTimes.entries
                 .sortedBy { it.value }
@@ -200,8 +188,7 @@ abstract class Check {
 
     private fun sendMessage(message: String) {
         try {
-            val mc = Minecraft.getMinecraft()
-            if (mc?.thePlayer != null) {
+            if (mc.thePlayer != null) {
                 mc.thePlayer.addChatMessage(ChatComponentText(message))
             }
         } catch (e: Exception) {
@@ -214,5 +201,74 @@ abstract class Check {
             System.err.println("[Lucid] $message")
         } catch (e: Exception) {
         }
+    }
+    
+    protected fun getPlayerSample(player: EntityPlayer): PlayerSample? {
+        return PlayerDataManager.getCurrentSample(player)
+    }
+    
+    protected fun getPreviousSample(player: EntityPlayer): PlayerSample? {
+        return PlayerDataManager.getPreviousSample(player)
+    }
+    
+    protected fun getPlayerHistory(player: EntityPlayer): List<PlayerSample> {
+        return PlayerDataManager.getHistory(player)
+    }
+    
+    protected fun getSampleTicksAgo(player: EntityPlayer, ticks: Int): PlayerSample? {
+        return PlayerDataManager.getTicksAgo(player, ticks)
+    }
+    
+    protected fun getMoveAngle(deltaX: Double, deltaZ: Double): Float {
+        if (Math.abs(deltaX) < 1e-8 && Math.abs(deltaZ) < 1e-8) {
+            return 0f
+        }
+        
+        return (MathHelper.atan2(deltaZ, deltaX).toFloat() * 180.0f / Math.PI.toFloat()) - 90.0f
+    }
+    
+    protected fun getRelativeMoveAngle(deltaX: Double, deltaZ: Double, yaw: Float): Float {
+        val moveAngle = getMoveAngle(deltaX, deltaZ)
+        var relativeAngle = moveAngle - yaw
+        
+        // Normalize to -180 to 180
+        relativeAngle = ((relativeAngle % 360f) + 360f) % 360f
+        if (relativeAngle > 180f) {
+            relativeAngle -= 360f
+        }
+        
+        return relativeAngle
+    }
+    
+    protected fun calculateSpeed(deltaX: Double, deltaZ: Double): Double {
+        return Math.sqrt(deltaX * deltaX + deltaZ * deltaZ)
+    }
+    
+    protected fun checkSurroundingBlocks(player: EntityPlayer, height: Int = 1): Boolean {
+        val world = player.worldObj
+        val pos = player.position
+        val offsets = listOf(
+            net.minecraft.util.BlockPos(0, 0, 1), 
+            net.minecraft.util.BlockPos(0, 0, -1),
+            net.minecraft.util.BlockPos(1, 0, 0), 
+            net.minecraft.util.BlockPos(-1, 0, 0)
+        )
+        
+        for (off in offsets) {
+            val side = pos.add(off)
+            var isBlocked = false
+            
+            for (y in 0 until height) {
+                val blockPos = side.add(0, y, 0)
+                if (!world.getBlockState(blockPos).block.isAir(world, blockPos)) {
+                    isBlocked = true
+                    break
+                }
+            }
+            
+            if (isBlocked) return true
+        }
+        
+        return false
     }
 }

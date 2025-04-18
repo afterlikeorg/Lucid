@@ -1,171 +1,192 @@
 package org.afterlike.lucid.check
 
+import net.minecraft.client.Minecraft
 import net.minecraft.entity.player.EntityPlayer
+import net.minecraft.item.ItemBlock
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.min
+import kotlin.math.sqrt
 
 class ScaffoldCheck : Check() {
     override val name = "Scaffold"
     override val description = "Detects illegal bridging patterns"
-
-    private val lastPlacementTime = ConcurrentHashMap<EntityPlayer, Long>()
-    private val placementFrequency = ConcurrentHashMap<EntityPlayer, Int>()
-    private val consistentPlacementAngles = ConcurrentHashMap<EntityPlayer, Int>()
-    private val bridgingStreak = ConcurrentHashMap<EntityPlayer, Int>()
-    private val sneaking = ConcurrentHashMap<EntityPlayer, Boolean>()
-    private val wasSwinging = ConcurrentHashMap<EntityPlayer, Boolean>()
-    private var lastCleanupTime = System.currentTimeMillis()
-    private val CLEANUP_INTERVAL = 30000L
+    
+    private val consecutiveViolations = ConcurrentHashMap<EntityPlayer, Int>()
+    private val lastViolationType = ConcurrentHashMap<EntityPlayer, String>()
+    private val lastViolationTime = ConcurrentHashMap<EntityPlayer, Long>()
 
     init {
         CheckManager.register(this)
-        vlThreshold = 8
-    }
-
-    override fun onPlayerRemove(player: EntityPlayer?) {
-
-        if (player != null) {
-            lastPlacementTime.remove(player)
-            placementFrequency.remove(player)
-            consistentPlacementAngles.remove(player)
-            bridgingStreak.remove(player)
-            sneaking.remove(player)
-            wasSwinging.remove(player)
-        } else {
-            lastPlacementTime.clear()
-            placementFrequency.clear()
-            consistentPlacementAngles.clear()
-            bridgingStreak.clear()
-            sneaking.clear()
-            wasSwinging.clear()
-        }
-
-        super.onPlayerRemove(player)
+        vlThreshold = 12
     }
 
     override fun onUpdate(target: EntityPlayer) {
-        try {
-            val mc = net.minecraft.client.Minecraft.getMinecraft()
-            val currentTime = System.currentTimeMillis()
+        val mc = Minecraft.getMinecraft()
+        if (target === mc.thePlayer || target.isRiding) return
 
-            if (currentTime - lastCleanupTime > CLEANUP_INTERVAL) {
-                cleanupOldData()
-                lastCleanupTime = currentTime
+        val samples = getPlayerHistory(target)
+        if (samples.size < 4) return
+
+        val currentSample = samples.last()
+        val tick = currentSample.tick
+        val pitch = currentSample.pitch.toDouble()
+        
+        val dx = currentSample.deltaX * 20.0
+        val dz = currentSample.deltaZ * 20.0
+        val speedXZsq = dx*dx + dz*dz
+        val speedXZ = sqrt(speedXZsq)
+        
+        val speedY = (samples[3].posY - samples[2].posY) * 20.0
+        val avgAccelY = 50.0 * (samples[0].posY - samples[1].posY - samples[2].posY + samples[3].posY)
+        
+        val angleDiff = abs(getMoveLookAngleDiff(currentSample))
+
+        var flagged = false
+        var checkType = ""
+
+        if (target.isSwingInProgress && target.hurtTime == 0 &&
+            pitch > 50.0 && speedXZsq > 9.0 &&
+            target.heldItem?.item is ItemBlock &&
+            angleDiff > 165.0 && speedXZsq < 100.0 &&
+            !isAlmostZero(avgAccelY)
+        ) {
+            // Calculate severity factors
+            val pitchFactor = ((pitch - 50.0) / 40.0).coerceIn(0.0, 1.0)  // 50->0.0, 90->1.0
+            val angleFactor = ((angleDiff - 165.0) / 15.0).coerceIn(0.0, 1.0)  // 165->0.0, 180->1.0
+            val speedFactor = ((speedXZ - 3.0) / 7.0).coerceIn(0.0, 1.0)  // Higher speed is more suspicious
+            
+            // Calculate base VL using severity factors
+            var baseVL = 0.0
+            var severity = 0.0
+            
+            // Check for tower scaffold
+            if (speedY in 4.0..15.0 && avgAccelY > -25.0) {
+                checkType = "tower"
+                
+                // Calculate tower-specific severity
+                val ySpeedFactor = ((speedY - 4.0) / 11.0).coerceIn(0.0, 1.0)  // 4->0.0, 15->1.0
+                val accelFactor = ((avgAccelY + 25.0) / 25.0).coerceIn(0.0, 1.0)  // Higher accel is more suspicious
+                
+                // Weighted severity calculation
+                severity = (pitchFactor * 0.3 + angleFactor * 0.3 + ySpeedFactor * 0.3 + accelFactor * 0.1).coerceIn(0.0, 1.0)
+                baseVL = 3.0 + (severity * 3.0)  // Base 3.0, up to +3.0 for high severity
             }
-
-            if (target == mc.thePlayer) return
-
-            val hasBlock = target.heldItem != null && target.heldItem.item.javaClass.simpleName.contains("ItemBlock")
-
-            val isSneaking = target.isSneaking
-            val isSwinging = target.isSwingInProgress
-            val wasPlayerSneaking = sneaking.getOrDefault(target, false)
-            val wasPlayerSwinging = wasSwinging.getOrDefault(target, false)
-
-
-            sneaking[target] = isSneaking
-            wasSwinging[target] = isSwinging
-
-
-            if (wasPlayerSwinging && !isSwinging && hasBlock) {
-                val currentTime = System.currentTimeMillis()
-                val lastTime = lastPlacementTime.getOrDefault(target, 0L)
-                val timeDelta = currentTime - lastTime
-
-
-                lastPlacementTime[target] = currentTime
-
-
-                if (timeDelta < 300) {
-                    placementFrequency[target] = placementFrequency.getOrDefault(target, 0) + 1
-
-
-                    if (placementFrequency.getOrDefault(target, 0) > 3) {
-                        addVL(
-                            target,
-                            2.5,
-                            "placing blocks too rapidly (${placementFrequency[target]} in quick succession)"
-                        )
-                    }
+            // Check for horizontal scaffold
+            else if (speedY in -1.0..4.0 &&
+                abs(speedY) > 0.005 &&
+                speedXZsq > 25.0
+            ) {
+                checkType = "horizontal"
+                
+                // Calculate horizontal-specific severity
+                val hSpeedFactor = ((speedXZ - 5.0) / 5.0).coerceIn(0.0, 1.0)  // How fast they're moving horizontally
+                
+                // Weighted severity calculation
+                severity = (pitchFactor * 0.3 + angleFactor * 0.3 + hSpeedFactor * 0.4).coerceIn(0.0, 1.0)
+                baseVL = 3.0 + (severity * 3.0)  // Base 3.0, up to +3.0 for high severity
+            }
+            
+            // Apply violation if a check was triggered
+            if (checkType.isNotEmpty()) {
+                // Track consecutive violations of the same type
+                val lastType = lastViolationType.getOrDefault(target, "")
+                val lastTime = lastViolationTime.getOrDefault(target, 0L)
+                
+                var consecutive = 0
+                if (lastType == checkType && (tick - lastTime) < 40) {
+                    consecutive = consecutiveViolations.getOrDefault(target, 0) + 1
                 } else {
-                    placementFrequency[target] = Math.max(0, placementFrequency.getOrDefault(target, 0) - 1)
+                    consecutive = 0
                 }
+                consecutiveViolations[target] = consecutive
+                lastViolationType[target] = checkType
+                lastViolationTime[target] = tick
+                
+                // Apply consecutive multiplier (up to 2x for 5+ consecutive violations)
+                val consecutiveMultiplier = 1.0 + (min(consecutive, 5) * 0.2)
+                val finalVL = baseVL * consecutiveMultiplier
+                
+                val reason = buildStandardReason(
+                    checkType,
+                    pitch,
+                    speedXZ,
+                    angleDiff,
+                    speedY,
+                    avgAccelY,
+                    severity,
+                    consecutive,
+                    finalVL
+                )
+                
+                addVL(target, finalVL, reason)
+                flagged = true
+            }
+        }
 
-
-                if (timeDelta > 3000) {
-                    placementFrequency[target] = 0
+        if (!flagged) {
+            val currentVL = getPlayerVL(target)
+            if (currentVL > 0) {
+                val decayRate = when {
+                    currentVL > vlThreshold * 0.75 -> 0.75  // Faster decay at high VL
+                    currentVL > vlThreshold * 0.5 -> 0.6   // Medium decay at medium VL
+                    currentVL > vlThreshold * 0.25 -> 0.5  // Standard decay at lower VL
+                    else -> 0.3                           // Slow decay at very low VL
                 }
-
-                val isLookingDown = target.rotationPitch > 40
-
-                if (isLookingDown && isSneaking) {
-                    bridgingStreak[target] = bridgingStreak.getOrDefault(target, 0) + 1
-
-                    if (bridgingStreak.getOrDefault(target, 0) > 6) {
-                        addVL(target, 2.0, "continuous bridging")
-
-
-                        if (Math.abs(target.rotationPitch - target.prevRotationPitch) < 1 &&
-                            Math.abs(target.rotationYaw - target.prevRotationYaw) < 1
-                        ) {
-
-                            consistentPlacementAngles[target] = consistentPlacementAngles.getOrDefault(target, 0) + 1
-
-                            if (consistentPlacementAngles.getOrDefault(target, 0) > 4) {
-                                addVL(target, 3.5, "suspiciously consistent block placements")
-                            }
-                        } else {
-                            consistentPlacementAngles[target] =
-                                Math.max(0, consistentPlacementAngles.getOrDefault(target, 0) - 1)
-                        }
-                    }
-                } else {
-                    bridgingStreak[target] = Math.max(0, bridgingStreak.getOrDefault(target, 0) - 1)
+                
+                decayVL(target, decayRate)
+                
+                // Reset consecutive violations counter after significant decay
+                if (currentVL <= vlThreshold * 0.2 && tick - lastViolationTime.getOrDefault(target, 0L) > 60) {
+                    consecutiveViolations[target] = 0
                 }
             }
-
-
-            decayVL(target, 0.1)
-
-        } catch (e: Exception) {
-            super.onUpdate(target)
         }
     }
 
-    private fun cleanupOldData() {
-        try {
-            val mc = net.minecraft.client.Minecraft.getMinecraft()
-            val worldPlayers = mc.theWorld?.playerEntities ?: listOf()
+    private fun buildStandardReason(
+        type: String,
+        pitch: Double,
+        speedXZ: Double,
+        angleDiff: Double,
+        speedY: Double,
+        avgAccelY: Double,
+        severity: Double,
+        consecutive: Int,
+        vlAmount: Double
+    ): String {
+        val itemName = mc.thePlayer.heldItem?.displayName ?: "unknown block"
+        
+        return "scaffold-$type | pitch=${"%.1f".format(pitch)}° | angle=${"%.1f".format(angleDiff)}° | " +
+               "speedXZ=${"%.2f".format(speedXZ)} | speedY=${"%.2f".format(speedY)} | " + 
+               "accelY=${"%.2f".format(avgAccelY)} | severity=${"%.2f".format(severity)} | " +
+               "consecutive=$consecutive | vl=${"%.1f".format(vlAmount)} | item=$itemName"
+    }
 
-            val allPlayers = mutableSetOf<EntityPlayer>()
-            allPlayers.addAll(worldPlayers)
+    private fun isAlmostZero(d: Double) = abs(d) < 0.001
 
-            val toRemove = mutableSetOf<EntityPlayer>()
-
-            lastPlacementTime.keys.forEach { player ->
-                if (!allPlayers.contains(player)) toRemove.add(player)
-            }
-            placementFrequency.keys.forEach { player ->
-                if (!allPlayers.contains(player)) toRemove.add(player)
-            }
-            consistentPlacementAngles.keys.forEach { player ->
-                if (!allPlayers.contains(player)) toRemove.add(player)
-            }
-            bridgingStreak.keys.forEach { player ->
-                if (!allPlayers.contains(player)) toRemove.add(player)
-            }
-            sneaking.keys.forEach { player ->
-                if (!allPlayers.contains(player)) toRemove.add(player)
-            }
-            wasSwinging.keys.forEach { player ->
-                if (!allPlayers.contains(player)) toRemove.add(player)
-            }
-
-            toRemove.forEach { player ->
-                onPlayerRemove(player)
-            }
-
-        } catch (e: Exception) {
-            logError("Error cleaning up scaffold data: ${e.message}")
+    private fun getMoveLookAngleDiff(sample: PlayerSample): Double {
+        val dx = sample.deltaX
+        val dz = sample.deltaZ
+        val move = Math.toDegrees(Math.atan2(dz, dx)) - 90.0
+        val look = sample.yaw.toDouble()
+        var diff = ((move - look) % 360.0 + 360.0) % 360.0
+        if (diff > 180.0) diff -= 360.0
+        return diff
+    }
+    
+    override fun onPlayerRemove(player: EntityPlayer?) {
+        if (player != null) {
+            consecutiveViolations.remove(player)
+            lastViolationType.remove(player)
+            lastViolationTime.remove(player)
+        } else {
+            consecutiveViolations.clear()
+            lastViolationType.clear()
+            lastViolationTime.clear()
         }
+        
+        super.onPlayerRemove(player)
     }
 }

@@ -5,17 +5,19 @@ import net.minecraft.item.ItemBow
 import net.minecraft.item.ItemFood
 import net.minecraft.item.ItemPotion
 import net.minecraft.item.ItemSword
+import java.util.concurrent.ConcurrentHashMap
+import kotlin.math.min
+import kotlin.math.sqrt
 
 class NoSlowCheck : Check() {
     override val name = "NoSlow"
     override val description = "Detects illegal movement while using items (eating, drinking, etc.)"
 
-    private val lastUsingTick = mutableMapOf<EntityPlayer, Int>()
-    private val lastItemSwapTick = mutableMapOf<EntityPlayer, Int>()
-    private val lastStopUsingTick = mutableMapOf<EntityPlayer, Int>()
-    private val lastUsedItemName = mutableMapOf<EntityPlayer, String>()
-    private var lastCleanupTime = System.currentTimeMillis()
-    private val CLEANUP_INTERVAL = 30000L
+    private val lastUsingTick = ConcurrentHashMap<EntityPlayer, Long>()
+    private val lastItemSwapTick = ConcurrentHashMap<EntityPlayer, Long>()
+    private val lastStopUsingTick = ConcurrentHashMap<EntityPlayer, Long>()
+    private val lastUsedItemName = ConcurrentHashMap<EntityPlayer, String>()
+    private val consecutiveViolations = ConcurrentHashMap<EntityPlayer, Int>()
 
     init {
         CheckManager.register(this)
@@ -23,22 +25,15 @@ class NoSlowCheck : Check() {
     }
 
     override fun onUpdate(target: EntityPlayer) {
-        val mc = net.minecraft.client.Minecraft.getMinecraft()
-        val currentTick = mc.theWorld.totalWorldTime.toInt()
-        val currentTime = System.currentTimeMillis()
-
-        if (currentTime - lastCleanupTime > CLEANUP_INTERVAL) {
-            cleanupOldData()
-            lastCleanupTime = currentTime
-        }
-
         if (target == mc.thePlayer) return
 
+        val currentSample = getPlayerSample(target) ?: return
+        val currentTick = currentSample.tick
+        
         val isSprinting = target.isSprinting
         val isUsingItem = target.isUsingItem
         val isRiding = target.ridingEntity != null
         val heldItem = target.heldItem
-
 
         if (isUsingItem && !lastUsingTick.containsKey(target)) {
             lastUsingTick[target] = currentTick
@@ -51,7 +46,6 @@ class NoSlowCheck : Check() {
         }
         lastUsedItemName[target] = currentItem
 
-
         if (!isUsingItem && lastUsingTick.containsKey(target)) {
             lastStopUsingTick[target] = currentTick
             lastUsingTick.remove(target)
@@ -61,14 +55,11 @@ class NoSlowCheck : Check() {
             val startUsingTick = lastUsingTick[target] ?: currentTick
             val lastSwapTick = lastItemSwapTick[target] ?: 0
 
-
             if (startUsingTick - lastSwapTick > 1) {
-
                 val stopUsingTick = lastStopUsingTick[target] ?: 0
                 val ticksSinceStopUsing = currentTick - stopUsingTick
 
                 if (ticksSinceStopUsing > 5) {
-
                     val itemType = when {
                         heldItem == null -> "unknown"
                         heldItem.item is ItemFood -> "food"
@@ -77,33 +68,47 @@ class NoSlowCheck : Check() {
                         heldItem.item is ItemSword -> "sword"
                         else -> "item"
                     }
-
-                    addVL(target, 1.0, "sprinting while using $itemType")
+                    
+                    // Get movement speed
+                    val speed = calculateSpeed(currentSample.deltaX, currentSample.deltaZ)
+                    
+                    // Track consecutive violations
+                    val consecutive = consecutiveViolations.getOrDefault(target, 0) + 1
+                    consecutiveViolations[target] = consecutive
+                    
+                    // Calculate VL amount based on consecutive violations
+                    val baseVL = 1.0
+                    val consecutiveMultiplier = 1.0 + (min(consecutive - 1, 4) * 0.25)
+                    val finalVL = baseVL * consecutiveMultiplier
+                    
+                    val itemName = heldItem?.displayName ?: "unknown item"
+                    
+                    addVL(
+                        target, 
+                        finalVL, 
+                        "no-slowdown | item=$itemName ($itemType) | speed=${"%.2f".format(speed)} | " +
+                        "sprinting=true | consecutive=$consecutive | vl=${"%.1f".format(finalVL)}"
+                    )
                 }
             }
         } else {
-
             val currentVL = getPlayerVL(target)
             if (currentVL > 0) {
-                decayVL(target, 0.5)
+                val decayRate = when {
+                    currentVL > 7.5 -> 0.5    // Decay faster at high VL
+                    currentVL > 5.0 -> 0.4    // Medium decay at medium VL
+                    currentVL > 2.5 -> 0.3    // Slower decay at lower VL
+                    else -> 0.2               // Very slow decay at very low VL
+                }
+                
+                decayVL(target, decayRate)
+                
+                // Reset consecutive violations after significant decay
+                if (currentVL <= vlThreshold * 0.2) {
+                    consecutiveViolations[target] = 0
+                }
             }
         }
-    }
-
-    private fun cleanupOldData() {
-        val mc = net.minecraft.client.Minecraft.getMinecraft()
-        val worldPlayers = mc.theWorld?.playerEntities ?: listOf()
-
-        val allPlayers = mutableSetOf<EntityPlayer>()
-        allPlayers.addAll(worldPlayers)
-
-        val toRemove = mutableSetOf<EntityPlayer>()
-        lastUsingTick.keys.forEach { if (!allPlayers.contains(it)) toRemove.add(it) }
-        lastItemSwapTick.keys.forEach { if (!allPlayers.contains(it)) toRemove.add(it) }
-        lastStopUsingTick.keys.forEach { if (!allPlayers.contains(it)) toRemove.add(it) }
-        lastUsedItemName.keys.forEach { if (!allPlayers.contains(it)) toRemove.add(it) }
-
-        toRemove.forEach { onPlayerRemove(it) }
     }
 
     override fun onPlayerRemove(player: EntityPlayer?) {
@@ -112,11 +117,13 @@ class NoSlowCheck : Check() {
             lastItemSwapTick.remove(player)
             lastStopUsingTick.remove(player)
             lastUsedItemName.remove(player)
+            consecutiveViolations.remove(player)
         } else {
             lastUsingTick.clear()
             lastItemSwapTick.clear()
             lastStopUsingTick.clear()
             lastUsedItemName.clear()
+            consecutiveViolations.clear()
         }
 
         super.onPlayerRemove(player)
