@@ -2,10 +2,10 @@
   {
     "modid": "${modid}",
     "name": "Lucid",
-    "description": "Detects cheaters in your game.",
+    "description": "An advanced anticheat mod to detect cheaters. /lucid to open the configuration menu.",
     "version": "${version}",
     "mcversion": "${mcversion}",
-    "url": "",
+    "url": "https://github.com/afterlikeorg/Lucid",
     "updateUrl": "",
     "authorList": [
       "desiyn"

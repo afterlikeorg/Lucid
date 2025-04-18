@@ -10,7 +10,7 @@ import kotlin.math.sqrt
 
 class VelocityCheck : Check() {
     override val name = "Velocity"
-    override val description = "Detects players who manipulate or reduce horizontal or vertical knockback"
+    override val description = "Detects manipulated knockback"
 
     private class HitEntry {
         var startTick: Long = 0

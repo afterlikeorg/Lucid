@@ -15,11 +15,15 @@ class SprintCheck : Check() {
 
     init {
         CheckManager.register(this)
-        vlThreshold = 8
+        vlThreshold = 12
     }
 
     override fun onUpdate(target: EntityPlayer) {
         if (target == mc.thePlayer || target.ridingEntity != null) return
+
+        if (detectTeleport(target)) return
+        
+        if (isImmune(target)) return
 
         val current = getPlayerSample(target) ?: return
         val prev = getPreviousSample(target) ?: return

@@ -8,7 +8,7 @@ import kotlin.math.min
 
 class RotationCheck : Check() {
     override val name = "Rotation"
-    override val description = "Detects illegal rotations and rotation patterns"
+    override val description = "Detects illegal rotations and unnatural patterns"
 
     private val lastPitchChanges = ConcurrentHashMap<EntityPlayer, MutableList<Float>>()
     private val lastYawChanges = ConcurrentHashMap<EntityPlayer, MutableList<Float>>()
@@ -18,7 +18,7 @@ class RotationCheck : Check() {
 
     init {
         CheckManager.register(this)
-        vlThreshold = 12
+        vlThreshold = 16
     }
 
     override fun onPlayerRemove(player: EntityPlayer?) {
@@ -42,6 +42,10 @@ class RotationCheck : Check() {
     override fun onUpdate(target: EntityPlayer) {
         try {
             if (target == mc.thePlayer) return
+
+            if (detectTeleport(target)) return
+            
+            if (isImmune(target)) return
 
             val currentSample = getPlayerSample(target) ?: return
             val prevSample = getPreviousSample(target) ?: return
