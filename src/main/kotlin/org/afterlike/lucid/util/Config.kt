@@ -13,11 +13,10 @@ object Config {
     var playSoundOnFlag: Boolean = true
     var verboseMode: Boolean = false
     var flagCooldown: Int = 5
-    
-    // Message format settings
-    var messageColor: String = "3" // Default cyan color
+
+    var messageColor: String = "3"
     var messageBold: Boolean = false
-    var messageSymbol: String = ">" // Alternative: "»"
+    var messageSymbol: String = ">"
     var showVLInFlag: Boolean = false
     var showWDR: Boolean = true
 
@@ -50,8 +49,7 @@ object Config {
                     playSoundOnFlag = getProperty("playSoundOnFlag", true)
                     verboseMode = getProperty("verboseMode", false)
                     flagCooldown = getProperty("flagCooldown", 5)
-                    
-                    // Load message format settings
+
                     messageColor = getProperty("messageColor", "3")
                     messageBold = getProperty("messageBold", false)
                     messageSymbol = getProperty("messageSymbol", ">")
@@ -91,8 +89,6 @@ object Config {
                 properties.setProperty("playSoundOnFlag", playSoundOnFlag.toString())
                 properties.setProperty("verboseMode", verboseMode.toString())
                 properties.setProperty("flagCooldown", flagCooldown.toString())
-                
-                // Save message format settings
                 properties.setProperty("messageColor", messageColor)
                 properties.setProperty("messageBold", messageBold.toString())
                 properties.setProperty("messageSymbol", messageSymbol)
@@ -120,12 +116,11 @@ object Config {
         }
     }
 
-    fun resetToDefaults() {
+    private fun resetToDefaults() {
         playSoundOnFlag = true
         verboseMode = false
         flagCooldown = 5
-        
-        // Reset message format settings
+
         messageColor = "3"
         messageBold = false
         messageSymbol = ">"
@@ -160,7 +155,7 @@ object Config {
             defaultValue
         }
     }
-    
+
     private fun getProperty(key: String, defaultValue: String): String {
         return try {
             properties.getProperty(key, defaultValue)
@@ -177,7 +172,7 @@ object Config {
 
         }
     }
-    
+
     // Get formatted prefix for chat messages
     fun getFormattedPrefix(): String {
         val boldCode = if (messageBold) "§l" else ""

@@ -15,9 +15,11 @@ import org.lwjgl.input.Mouse
 import org.lwjgl.opengl.GL11
 import java.awt.Color
 import java.io.IOException
+import kotlin.math.max
+import kotlin.math.min
 
 class LucidGui : GuiScreen() {
-    
+
     private fun getThemeColor(): Color {
         return when (Config.messageColor) {
             "0" -> Color(0, 0, 0) // Black
@@ -39,18 +41,18 @@ class LucidGui : GuiScreen() {
             else -> Color(0, 170, 170) // Default Cyan
         }
     }
-    
+
     private fun tintColor(baseColor: Color, intensity: Float = 0.3f): Color {
         val themeColor = getThemeColor()
-        
+
         val r = (baseColor.red * (1 - intensity) + themeColor.red * intensity).toInt().coerceIn(0, 255)
         val g = (baseColor.green * (1 - intensity) + themeColor.green * intensity).toInt().coerceIn(0, 255)
         val b = (baseColor.blue * (1 - intensity) + themeColor.blue * intensity).toInt().coerceIn(0, 255)
         val a = baseColor.alpha
-        
+
         return Color(r, g, b, a)
     }
-    
+
     private val baseBackgroundColor = Color(25, 25, 25, 245)
     private val basePanelColor = Color(35, 35, 35, 255)
     private val baseAccentColor = Color(70, 70, 70)
@@ -67,7 +69,7 @@ class LucidGui : GuiScreen() {
     private val basePreviewBoxColor = Color(20, 20, 20)
     private val baseScrollTrackColor = Color(40, 40, 40, 255)
     private val baseScrollThumbColor = Color(80, 80, 80, 255)
-    
+
     private var backgroundColor = baseBackgroundColor
     private var panelColor = basePanelColor
     private var accentColor = baseAccentColor
@@ -84,11 +86,11 @@ class LucidGui : GuiScreen() {
     private var previewBoxColor = basePreviewBoxColor
     private var scrollTrackColor = baseScrollTrackColor
     private var scrollThumbColor = baseScrollThumbColor
-    
+
     private fun updateColors() {
         backgroundColor = tintColor(baseBackgroundColor, 0.05f)
         panelColor = tintColor(basePanelColor, 0.05f)
-        
+
         accentColor = tintColor(baseAccentColor, 0.5f)
         accentColorHover = tintColor(baseAccentColorHover, 0.5f)
         accentColorDisabled = tintColor(baseAccentColorDisabled, 0.2f)
@@ -116,7 +118,7 @@ class LucidGui : GuiScreen() {
         CLOSE,
         COOLDOWN_DEC, COOLDOWN_INC,
         COLOR_PREV, COLOR_NEXT,
-        TOGGLE_BOLD, 
+        TOGGLE_BOLD,
         SYMBOL_TOGGLE,
         TOGGLE_SHOW_VL,
         TOGGLE_SHOW_WDR
@@ -141,9 +143,9 @@ class LucidGui : GuiScreen() {
     private var isScrolling = false
     private var contentHeight = 0
     private var hasScrollbar = false
-    
+
     private val buttonSound = ResourceLocation("gui.button.press")
-    
+
     private val colorCodes = listOf(
         "0" to "§0Black",
         "1" to "§1Dark Blue",
@@ -234,20 +236,17 @@ class LucidGui : GuiScreen() {
     }
 
     private val buttons = mutableListOf<ModernButton>()
-    
-    // Get the effective content width accounting for scrollbar
+
     private fun getContentWidth(): Int {
         return panelWidth - 2 * contentPadding - (if (hasScrollbar) scrollbarWidth + scrollbarPadding * 2 else 0)
     }
-    
-    // Calculate button widths for consistent sizing
+
     private fun getButtonWidth(fullWidth: Boolean = true): Int {
         val effectiveWidth = getContentWidth()
-        
+
         return if (fullWidth) {
             effectiveWidth
         } else {
-            // Calculate so that left button + spacing + small button + spacing + small button = full width
             effectiveWidth - (2 * buttonWidth + 2 * buttonSpacing)
         }
     }
@@ -255,8 +254,7 @@ class LucidGui : GuiScreen() {
     override fun initGui() {
         buttons.clear()
         super.initGui()
-        
-        // Update colors based on the theme
+
         updateColors()
 
         val centerX = width / 2
@@ -294,7 +292,7 @@ class LucidGui : GuiScreen() {
                 isActive = currentTab == Tab.APPEARANCE
             )
         )
-        
+
         buttons.add(
             ModernButton(
                 3, panelLeft + tabWidth * 2, panelTop + headerHeight,
@@ -306,17 +304,15 @@ class LucidGui : GuiScreen() {
             )
         )
 
-        // First calculate content height without considering scrollbar
         when (currentTab) {
             Tab.CHECKS -> initChecksTab(panelLeft, panelTop, false)
             Tab.APPEARANCE -> initAppearanceTab(panelLeft, panelTop, false)
             Tab.SETTINGS -> initSettingsTab(panelLeft, panelTop, false)
         }
-        
+
         val contentAreaHeight = panelHeight - headerHeight - tabHeight - contentPadding
         hasScrollbar = contentHeight > contentAreaHeight
-        
-        // Then reinitialize with proper button widths
+
         buttons.removeAll { it.id >= 100 }
         when (currentTab) {
             Tab.CHECKS -> initChecksTab(panelLeft, panelTop, hasScrollbar)
@@ -324,8 +320,8 @@ class LucidGui : GuiScreen() {
             Tab.SETTINGS -> initSettingsTab(panelLeft, panelTop, hasScrollbar)
         }
 
-        maxScrollOffset = Math.max(0, contentHeight - contentAreaHeight)
-        scrollOffset = Math.min(scrollOffset, maxScrollOffset)
+        maxScrollOffset = max(0, contentHeight - contentAreaHeight)
+        scrollOffset = min(scrollOffset, maxScrollOffset)
     }
 
     private fun initChecksTab(panelLeft: Int, panelTop: Int, withScrollbar: Boolean) {
@@ -375,22 +371,20 @@ class LucidGui : GuiScreen() {
 
         contentHeight += contentPadding + bottomPadding
     }
-    
+
     private fun initAppearanceTab(panelLeft: Int, panelTop: Int, withScrollbar: Boolean) {
         val contentLeft = panelLeft + contentPadding
         val contentStartY = panelTop + headerHeight + tabHeight
         var y = contentStartY + contentPadding
-        
-        // Calculate widths based on scrollbar presence
+
         val fullButtonWidth = getButtonWidth(true)
         val settingWidth = getButtonWidth(false)
-    
+
         contentHeight = contentPadding
-        
-        // Color setting
+
         val currentColorName = colorCodes.find { it.first == Config.messageColor }?.second ?: "§3Cyan"
         val colorLabel = "Message Color: $currentColorName"
-        
+
         buttons.add(
             ModernButton(
                 100, contentLeft, y, settingWidth, buttonHeight,
@@ -398,34 +392,33 @@ class LucidGui : GuiScreen() {
                 description = "The color used for Lucid in chat messages"
             )
         )
-    
+
         buttons.add(
             ModernButton(
                 101, contentLeft + settingWidth + buttonSpacing, y,
                 buttonWidth, buttonHeight, "◀", ButtonAction.COLOR_PREV
             )
         )
-    
+
         buttons.add(
             ModernButton(
                 102, contentLeft + settingWidth + buttonWidth + buttonSpacing * 2, y,
                 buttonWidth, buttonHeight, "▶", ButtonAction.COLOR_NEXT
             )
         )
-    
+
         val colorDescLines = wrapText(
             "The color used for Lucid in chat messages",
             fullButtonWidth
         ).size
         val colorDescHeight = colorDescLines * 10 + descriptionPadding
-    
+
         y += buttonHeight + colorDescHeight + buttonSpacing * 2
         contentHeight += buttonHeight + colorDescHeight + buttonSpacing * 2
-    
-        // Bold setting
+
         val boldStatus = if (Config.messageBold) "§aON§r" else "§cOFF§r"
         val boldLabel = "Bold Text: $boldStatus"
-        
+
         buttons.add(
             ModernButton(
                 103, contentLeft, y, fullButtonWidth, buttonHeight,
@@ -433,19 +426,18 @@ class LucidGui : GuiScreen() {
                 description = "Make Lucid text bold in chat messages"
             )
         )
-    
+
         val boldDescLines = wrapText(
             "Make Lucid text bold in chat messages",
             fullButtonWidth
         ).size
         val boldDescHeight = boldDescLines * 10 + descriptionPadding
-    
+
         y += buttonHeight + boldDescHeight + buttonSpacing * 2
         contentHeight += buttonHeight + boldDescHeight + buttonSpacing * 2
-    
-        // Symbol setting
+
         val symbolLabel = "Symbol: ${Config.messageSymbol}"
-        
+
         buttons.add(
             ModernButton(
                 104, contentLeft, y, fullButtonWidth, buttonHeight,
@@ -453,20 +445,19 @@ class LucidGui : GuiScreen() {
                 description = "Toggle between > and » symbols"
             )
         )
-    
+
         val symbolDescLines = wrapText(
             "Toggle between > and » symbols",
             fullButtonWidth
         ).size
         val symbolDescHeight = symbolDescLines * 10 + descriptionPadding
-    
+
         y += buttonHeight + symbolDescHeight + buttonSpacing * 2
         contentHeight += buttonHeight + symbolDescHeight + buttonSpacing * 2
-    
-        // Show VL setting
+
         val vlStatus = if (Config.showVLInFlag) "§aON§r" else "§cOFF§r"
         val vlLabel = "Show VL in Flag: $vlStatus"
-        
+
         buttons.add(
             ModernButton(
                 105, contentLeft, y, fullButtonWidth, buttonHeight,
@@ -474,20 +465,19 @@ class LucidGui : GuiScreen() {
                 description = "Show violation level in flag messages"
             )
         )
-    
+
         val vlDescLines = wrapText(
             "Show violation level in flag messages",
             fullButtonWidth
         ).size
         val vlDescHeight = vlDescLines * 10 + descriptionPadding
-    
+
         y += buttonHeight + vlDescHeight + buttonSpacing * 2
         contentHeight += buttonHeight + vlDescHeight + buttonSpacing * 2
-    
-        // Show WDR setting
+
         val wdrStatus = if (Config.showWDR) "§aON§r" else "§cOFF§r"
         val wdrLabel = "Show WDR Button: $wdrStatus"
-        
+
         buttons.add(
             ModernButton(
                 106, contentLeft, y, fullButtonWidth, buttonHeight,
@@ -495,13 +485,13 @@ class LucidGui : GuiScreen() {
                 description = "Show the WDR (Watchdog Report) button in flag messages"
             )
         )
-    
+
         val wdrDescLines = wrapText(
             "Show the WDR (Watchdog Report) button in flag messages",
             fullButtonWidth
         ).size
         val wdrDescHeight = wdrDescLines * 10 + descriptionPadding
-    
+
         y += buttonHeight + wdrDescHeight + buttonSpacing * 2
         contentHeight += buttonHeight + wdrDescHeight + buttonSpacing * 2 + bottomPadding
     }
@@ -511,10 +501,9 @@ class LucidGui : GuiScreen() {
         val contentStartY = panelTop + headerHeight + tabHeight
         var y = contentStartY + contentPadding
 
-        // Calculate widths based on scrollbar presence
         val fullButtonWidth = getButtonWidth(true)
         val settingWidth = getButtonWidth(false)
-        
+
         contentHeight = contentPadding
 
         val soundStatus = if (Config.playSoundOnFlag) "§aON§r" else "§cOFF§r"
@@ -585,12 +574,11 @@ class LucidGui : GuiScreen() {
         y += buttonHeight + cooldownDescHeight + buttonSpacing * 2
         contentHeight += buttonHeight + cooldownDescHeight + buttonSpacing * 2
 
-        // Add the credit text to the Settings tab only
         val creditText = "by @desiyn"
         val creditCenterX = panelLeft + panelWidth / 2
         fontRendererObj.drawString(
             creditText,
-            (creditCenterX - fontRendererObj.getStringWidth(creditText) / 2).toFloat(), 
+            (creditCenterX - fontRendererObj.getStringWidth(creditText) / 2).toFloat(),
             (panelTop + panelHeight - contentPadding - fontRendererObj.FONT_HEIGHT).toFloat(),
             textSecondaryColor.rgb,
             false
@@ -715,25 +703,41 @@ class LucidGui : GuiScreen() {
 
         GL11.glDisable(GL11.GL_SCISSOR_TEST)
         GlStateManager.popMatrix()
-        
+
         if (currentTab == Tab.APPEARANCE) {
             val contentLeft = panelLeft
             val previewY = panelTop + panelHeight + 10
             val previewBoxHeight = 40
             val previewBoxWidth = panelWidth
-            
-            // Draw preview box background
-            Gui.drawRect(contentLeft, previewY, contentLeft + previewBoxWidth, previewY + previewBoxHeight, previewBoxColor.rgb)
-            
-            // Draw preview box border
+
+            Gui.drawRect(
+                contentLeft,
+                previewY,
+                contentLeft + previewBoxWidth,
+                previewY + previewBoxHeight,
+                previewBoxColor.rgb
+            )
+
             Gui.drawRect(contentLeft, previewY, contentLeft + previewBoxWidth, previewY + 1, borderColor.rgb)
-            Gui.drawRect(contentLeft + previewBoxWidth - 1, previewY, contentLeft + previewBoxWidth, previewY + previewBoxHeight, borderColor.rgb)
-            Gui.drawRect(contentLeft, previewY + previewBoxHeight - 1, contentLeft + previewBoxWidth, previewY + previewBoxHeight, borderColor.rgb)
+            Gui.drawRect(
+                contentLeft + previewBoxWidth - 1,
+                previewY,
+                contentLeft + previewBoxWidth,
+                previewY + previewBoxHeight,
+                borderColor.rgb
+            )
+            Gui.drawRect(
+                contentLeft,
+                previewY + previewBoxHeight - 1,
+                contentLeft + previewBoxWidth,
+                previewY + previewBoxHeight,
+                borderColor.rgb
+            )
             Gui.drawRect(contentLeft, previewY, contentLeft + 1, previewY + previewBoxHeight, borderColor.rgb)
-            
+
             val vlText = if (Config.showVLInFlag) " §7[VL: 10]" else ""
             val wdrText = if (Config.showWDR) " §c[WDR]" else ""
-            
+
             fontRendererObj.drawStringWithShadow(
                 Config.getFormattedPrefix() + "§fPlayer §7failed §${Config.messageColor}Check" + vlText + wdrText,
                 (contentLeft + contentPadding).toFloat(),
@@ -748,7 +752,7 @@ class LucidGui : GuiScreen() {
             val scrollTrackBottom = contentTop + contentAreaHeight - 5
             val scrollTrackHeight = scrollTrackBottom - scrollTrackTop
 
-            val scrollbarHeight = Math.max(30, scrollTrackHeight * scrollTrackHeight / contentHeight)
+            val scrollbarHeight = max(30, scrollTrackHeight * scrollTrackHeight / contentHeight)
             val scrollProgress = scrollOffset.toFloat() / maxScrollOffset.toFloat()
             val scrollbarY = scrollTrackTop + ((scrollTrackHeight - scrollbarHeight) * scrollProgress).toInt()
 
@@ -807,7 +811,7 @@ class LucidGui : GuiScreen() {
         val scroll = Mouse.getEventDWheel()
         if (scroll != 0 && hasScrollbar) {
             scrollOffset -= scroll / 10
-            scrollOffset = Math.max(0, Math.min(scrollOffset, maxScrollOffset))
+            scrollOffset = max(0, min(scrollOffset, maxScrollOffset))
         }
     }
 
@@ -881,7 +885,7 @@ class LucidGui : GuiScreen() {
                 Config.flagCooldown++
                 initGui()
             }
-            
+
             ButtonAction.COLOR_PREV -> {
                 val currentIndex = colorCodes.indexOfFirst { it.first == Config.messageColor }
                 val newIndex = if (currentIndex <= 0) colorCodes.size - 1 else currentIndex - 1
@@ -889,7 +893,7 @@ class LucidGui : GuiScreen() {
                 updateColors()
                 initGui()
             }
-            
+
             ButtonAction.COLOR_NEXT -> {
                 val currentIndex = colorCodes.indexOfFirst { it.first == Config.messageColor }
                 val newIndex = if (currentIndex >= colorCodes.size - 1) 0 else currentIndex + 1
@@ -897,22 +901,22 @@ class LucidGui : GuiScreen() {
                 updateColors()
                 initGui()
             }
-            
+
             ButtonAction.TOGGLE_BOLD -> {
                 Config.messageBold = !Config.messageBold
                 initGui()
             }
-            
+
             ButtonAction.SYMBOL_TOGGLE -> {
                 Config.messageSymbol = if (Config.messageSymbol == ">") "»" else ">"
                 initGui()
             }
-            
+
             ButtonAction.TOGGLE_SHOW_VL -> {
                 Config.showVLInFlag = !Config.showVLInFlag
                 initGui()
             }
-            
+
             ButtonAction.TOGGLE_SHOW_WDR -> {
                 Config.showWDR = !Config.showWDR
                 initGui()
@@ -923,7 +927,7 @@ class LucidGui : GuiScreen() {
                 scrollOffset = 0
                 initGui()
             }
-            
+
             ButtonAction.TAB_APPEARANCE -> {
                 currentTab = Tab.APPEARANCE
                 scrollOffset = 0

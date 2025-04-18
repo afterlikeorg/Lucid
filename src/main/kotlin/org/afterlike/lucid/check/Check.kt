@@ -11,6 +11,9 @@ import net.minecraft.util.MathHelper
 import org.afterlike.lucid.util.Config
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.sqrt
 
 abstract class Check {
     abstract val name: String
@@ -21,7 +24,7 @@ abstract class Check {
 
     var vlThreshold: Int = 10
 
-    var lastDebugInfo: String = ""
+    private var lastDebugInfo: String = ""
 
     private val lastFlagTimes = ConcurrentHashMap<UUID, Long>()
 
@@ -41,7 +44,7 @@ abstract class Check {
         try {
 
         } catch (e: Exception) {
-            logError("Error updating ${name} for ${target.name}: ${e.message}")
+            logError("Error updating $name for ${target.name}: ${e.message}")
         }
     }
 
@@ -104,7 +107,7 @@ abstract class Check {
         try {
             val currentVL = getPlayerVL(player)
             if (currentVL > 0) {
-                setPlayerVL(player, Math.max(0.0, currentVL - amount))
+                setPlayerVL(player, max(0.0, currentVL - amount))
             }
         } catch (e: Exception) {
             logError("Error decaying VL: ${e.message}")
@@ -124,8 +127,9 @@ abstract class Check {
 
                 try {
                     val vlText = if (Config.showVLInFlag) " §7[VL: ${vlThreshold}]" else ""
-                    val messageBase = ChatComponentText("${Config.getFormattedPrefix()}$displayName §7failed §${Config.messageColor}$name$vlText")
-                    
+                    val messageBase =
+                        ChatComponentText("${Config.getFormattedPrefix()}$displayName §7failed §${Config.messageColor}$name$vlText")
+
                     if (Config.showWDR) {
                         val wdrButton = ChatComponentText(" §c[WDR]")
                         val wdrStyle = ChatStyle()
@@ -202,62 +206,62 @@ abstract class Check {
         } catch (e: Exception) {
         }
     }
-    
+
     protected fun getPlayerSample(player: EntityPlayer): PlayerSample? {
         return PlayerDataManager.getCurrentSample(player)
     }
-    
+
     protected fun getPreviousSample(player: EntityPlayer): PlayerSample? {
         return PlayerDataManager.getPreviousSample(player)
     }
-    
+
     protected fun getPlayerHistory(player: EntityPlayer): List<PlayerSample> {
         return PlayerDataManager.getHistory(player)
     }
-    
+
     protected fun getSampleTicksAgo(player: EntityPlayer, ticks: Int): PlayerSample? {
         return PlayerDataManager.getTicksAgo(player, ticks)
     }
-    
+
     protected fun getMoveAngle(deltaX: Double, deltaZ: Double): Float {
-        if (Math.abs(deltaX) < 1e-8 && Math.abs(deltaZ) < 1e-8) {
+        if (abs(deltaX) < 1e-8 && abs(deltaZ) < 1e-8) {
             return 0f
         }
-        
+
         return (MathHelper.atan2(deltaZ, deltaX).toFloat() * 180.0f / Math.PI.toFloat()) - 90.0f
     }
-    
+
     protected fun getRelativeMoveAngle(deltaX: Double, deltaZ: Double, yaw: Float): Float {
         val moveAngle = getMoveAngle(deltaX, deltaZ)
         var relativeAngle = moveAngle - yaw
-        
+
         // Normalize to -180 to 180
         relativeAngle = ((relativeAngle % 360f) + 360f) % 360f
         if (relativeAngle > 180f) {
             relativeAngle -= 360f
         }
-        
+
         return relativeAngle
     }
-    
+
     protected fun calculateSpeed(deltaX: Double, deltaZ: Double): Double {
-        return Math.sqrt(deltaX * deltaX + deltaZ * deltaZ)
+        return sqrt(deltaX * deltaX + deltaZ * deltaZ)
     }
-    
+
     protected fun checkSurroundingBlocks(player: EntityPlayer, height: Int = 1): Boolean {
         val world = player.worldObj
         val pos = player.position
         val offsets = listOf(
-            net.minecraft.util.BlockPos(0, 0, 1), 
+            net.minecraft.util.BlockPos(0, 0, 1),
             net.minecraft.util.BlockPos(0, 0, -1),
-            net.minecraft.util.BlockPos(1, 0, 0), 
+            net.minecraft.util.BlockPos(1, 0, 0),
             net.minecraft.util.BlockPos(-1, 0, 0)
         )
-        
+
         for (off in offsets) {
             val side = pos.add(off)
             var isBlocked = false
-            
+
             for (y in 0 until height) {
                 val blockPos = side.add(0, y, 0)
                 if (!world.getBlockState(blockPos).block.isAir(world, blockPos)) {
@@ -265,10 +269,10 @@ abstract class Check {
                     break
                 }
             }
-            
+
             if (isBlocked) return true
         }
-        
+
         return false
     }
 }

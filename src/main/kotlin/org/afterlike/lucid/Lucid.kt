@@ -10,7 +10,6 @@ import org.afterlike.lucid.check.*
 import org.afterlike.lucid.command.LucidCommand
 import org.afterlike.lucid.event.EventHandler
 import org.afterlike.lucid.util.Config
-import org.afterlike.lucid.util.TPSTracker
 
 @Mod(modid = "lucid", useMetadata = true)
 class Lucid {
@@ -22,7 +21,6 @@ class Lucid {
     @Mod.EventHandler
     fun preInit(event: FMLPreInitializationEvent) {
         MinecraftForge.EVENT_BUS.register(this)
-        MinecraftForge.EVENT_BUS.register(TPSTracker)
     }
 
     @Mod.EventHandler
@@ -37,6 +35,14 @@ class Lucid {
 
             Config.load()
 
+            Runtime.getRuntime().addShutdownHook(Thread {
+                try {
+                    shutdown()
+                } catch (e: Exception) {
+                    System.err.println("[Lucid] Error during shutdown: ${e.message}")
+                }
+            })
+
             println("[Lucid] Anti-cheat initialized successfully")
         } catch (e: Exception) {
             System.err.println("[Lucid] Error during initialization: ${e.message}")
@@ -47,11 +53,23 @@ class Lucid {
     @Mod.EventHandler
     fun onServerStopping(event: FMLServerStoppingEvent) {
         Config.save()
+        shutdown()
+    }
+
+    private fun shutdown() {
+        try {
+            println("[Lucid] Shutting down resources...")
+            CheckManager.shutdown()
+            println("[Lucid] Shutdown complete")
+        } catch (e: Exception) {
+            System.err.println("[Lucid] Error during shutdown: ${e.message}")
+            e.printStackTrace()
+        }
     }
 
     private fun initChecks() {
         try {
-            System.out.println("[Lucid] Initializing checks...")
+            println("[Lucid] Initializing checks...")
 
             val checks = listOf(
                 { AutoBlockCheck() },

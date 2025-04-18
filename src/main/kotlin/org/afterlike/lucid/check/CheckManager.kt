@@ -7,8 +7,9 @@ import net.minecraftforge.event.world.WorldEvent
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent
 import net.minecraftforge.fml.common.gameevent.PlayerEvent
 import net.minecraftforge.fml.common.gameevent.TickEvent
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.CopyOnWriteArrayList
+import java.util.*
+import java.util.concurrent.*
+import java.util.concurrent.atomic.AtomicInteger
 
 object CheckManager {
 
@@ -16,9 +17,29 @@ object CheckManager {
 
     private val playerDimensions = ConcurrentHashMap<EntityPlayer, Int>()
 
+    private val activePlayerSet = Collections.newSetFromMap(ConcurrentHashMap<EntityPlayer, Boolean>())
+
     private var lastProcessedTick = 0L
-    
+
+    private var lastSampleCollectionTime = 0L
+    private const val SAMPLE_THROTTLE_MS = 16
+
     private val mc = Minecraft.getMinecraft()
+
+    private val executorService = Executors.newFixedThreadPool(
+        2,
+        object : ThreadFactory {
+            private val threadNumber = AtomicInteger(1)
+            override fun newThread(r: Runnable): Thread {
+                val thread = Thread(r, "Lucid-Check-Thread-${threadNumber.getAndIncrement()}")
+                thread.isDaemon = true
+                thread.priority = Thread.NORM_PRIORITY - 1
+                return thread
+            }
+        }
+    )
+
+    private val activeFutures = ConcurrentHashMap<EntityPlayer, Future<*>>()
 
     fun register(check: Check) {
         try {
@@ -32,15 +53,22 @@ object CheckManager {
 
     fun handlePacket(packet: Packet<*>) {
         try {
+            if (checks.isEmpty()) return
+
+            var processed = false
+
             for (check in checks) {
                 try {
                     if (check.enabled) {
                         check.onPacket(packet)
+                        processed = true
                     }
                 } catch (e: Exception) {
                     System.err.println("[Lucid] Error in check ${check.name} while processing packet: ${e.message}")
                 }
             }
+
+            if (!processed) return
         } catch (e: Exception) {
             System.err.println("[Lucid] Error in packet handler: ${e.message}")
         }
@@ -49,8 +77,9 @@ object CheckManager {
     @SubscribeEvent
     fun onClientTick(event: TickEvent.ClientTickEvent) {
         try {
-
             if (event.phase != TickEvent.Phase.END) return
+
+            if (checks.isEmpty()) return
 
             val thePlayer = mc.thePlayer ?: return
             val theWorld = mc.theWorld ?: return
@@ -58,43 +87,71 @@ object CheckManager {
             val currentTick = theWorld.totalWorldTime
             lastProcessedTick = currentTick
 
-            trackPlayerDimensions(theWorld, thePlayer)
+            val currentTime = System.currentTimeMillis()
+            val shouldCollectSamples = currentTime - lastSampleCollectionTime >= SAMPLE_THROTTLE_MS
 
-            for (entity in theWorld.playerEntities) {
-                if (entity !== thePlayer && entity.isEntityAlive) {
-                    PlayerDataManager.collectSample(entity)
+            if (shouldCollectSamples) {
+                lastSampleCollectionTime = currentTime
 
-                    for (check in checks) {
-                        if (check.enabled) {
-                            try {
-                                check.onUpdate(entity)
-                            } catch (e: Exception) {
-                                System.err.println("[Lucid] Error in check ${check.name} for player ${entity.name}: ${e.message}")
+                activePlayerSet.clear()
+
+                for (entity in theWorld.playerEntities) {
+                    if (entity !== thePlayer && entity.isEntityAlive) {
+                        activePlayerSet.add(entity)
+
+                        try {
+                            val currentDimension = entity.dimension
+                            val previousDimension = playerDimensions.put(entity, currentDimension)
+
+                            if (previousDimension != null && previousDimension != currentDimension) {
+                                onPlayerDimensionChange(entity)
+                                continue // Skip this player for this tick
                             }
+                        } catch (e: Exception) {
+                            System.err.println("[Lucid] Error tracking dimension for player ${entity.name}: ${e.message}")
+                            continue
                         }
+
+                        PlayerDataManager.collectSample(entity)
+
+                        submitPlayerForAsyncChecks(entity)
                     }
                 }
-            }
 
-            cleanupDisconnectedPlayers(theWorld)
+                cleanupDisconnectedPlayers()
+            }
         } catch (e: Exception) {
             System.err.println("[Lucid] Error in client tick handler: ${e.message}")
         }
     }
 
-    private fun trackPlayerDimensions(theWorld: net.minecraft.world.World, thePlayer: EntityPlayer) {
-        for (entity in theWorld.playerEntities) {
-            if (entity !== thePlayer && entity.isEntityAlive) {
+    private fun submitPlayerForAsyncChecks(player: EntityPlayer) {
+        activeFutures[player]?.let { future ->
+            if (!future.isDone && !future.isCancelled) {
+                future.cancel(false)
+            }
+        }
+
+        val future = executorService.submit {
+            try {
+                runChecksForPlayer(player)
+            } catch (e: Exception) {
+                System.err.println("[Lucid] Error in async check thread for ${player.name}: ${e.message}")
+            } finally {
+                activeFutures.remove(player)
+            }
+        }
+
+        activeFutures[player] = future
+    }
+
+    private fun runChecksForPlayer(player: EntityPlayer) {
+        for (check in checks) {
+            if (check.enabled) {
                 try {
-                    val currentDimension = entity.dimension
-                    val previousDimension = playerDimensions.put(entity, currentDimension)
-
-
-                    if (previousDimension != null && previousDimension != currentDimension) {
-                        onPlayerDimensionChange(entity)
-                    }
+                    check.onUpdate(player)
                 } catch (e: Exception) {
-                    System.err.println("[Lucid] Error tracking dimension for player ${entity.name}: ${e.message}")
+                    System.err.println("[Lucid] Error in check ${check.name} for player ${player.name}: ${e.message}")
                 }
             }
         }
@@ -105,6 +162,13 @@ object CheckManager {
         try {
             val player = event.player
             if (player != null) {
+                activeFutures[player]?.let { future ->
+                    if (!future.isDone && !future.isCancelled) {
+                        future.cancel(false)
+                    }
+                }
+                activeFutures.remove(player)
+
                 PlayerDataManager.removePlayer(player)
 
                 for (check in checks) {
@@ -114,7 +178,9 @@ object CheckManager {
                         System.err.println("[Lucid] Error cleaning up player ${player.name} in check ${check.name}: ${e.message}")
                     }
                 }
+
                 playerDimensions.remove(player)
+                activePlayerSet.remove(player)
             }
         } catch (e: Exception) {
             System.err.println("[Lucid] Error in player logout handler: ${e.message}")
@@ -124,11 +190,18 @@ object CheckManager {
     @SubscribeEvent
     fun onWorldUnload(event: WorldEvent.Unload) {
         try {
-
             if (!event.world.isRemote) return
 
+            for (future in activeFutures.values) {
+                if (!future.isDone && !future.isCancelled) {
+                    future.cancel(false)
+                }
+            }
+            activeFutures.clear()
+
             playerDimensions.clear()
-            
+            activePlayerSet.clear()
+
             PlayerDataManager.removePlayer(null)
 
             for (check in checks) {
@@ -144,9 +217,15 @@ object CheckManager {
     }
 
     private fun onPlayerDimensionChange(player: EntityPlayer) {
-        // Reset player data on dimension change
+        activeFutures[player]?.let { future ->
+            if (!future.isDone && !future.isCancelled) {
+                future.cancel(false)
+            }
+        }
+        activeFutures.remove(player)
+
         PlayerDataManager.removePlayer(player)
-        
+
         for (check in checks) {
             try {
                 if (check.enabled) {
@@ -158,15 +237,26 @@ object CheckManager {
         }
     }
 
-    private fun cleanupDisconnectedPlayers(world: net.minecraft.world.World) {
+    private fun cleanupDisconnectedPlayers() {
         try {
-            val playerEntities = world.playerEntities.toSet()
+            val toRemove = ArrayList<EntityPlayer>(4)
 
-            val playersToRemove = playerDimensions.keys.filter { !playerEntities.contains(it) }
+            for (player in playerDimensions.keys) {
+                if (!activePlayerSet.contains(player)) {
+                    toRemove.add(player)
+                }
+            }
 
-            for (player in playersToRemove) {
+            for (player in toRemove) {
+                activeFutures[player]?.let { future ->
+                    if (!future.isDone && !future.isCancelled) {
+                        future.cancel(false)
+                    }
+                }
+                activeFutures.remove(player)
+
                 PlayerDataManager.removePlayer(player)
-                
+
                 for (check in checks) {
                     try {
                         check.onPlayerRemove(player)
@@ -174,6 +264,7 @@ object CheckManager {
                         System.err.println("[Lucid] Error cleaning up player ${player.name} in check ${check.name}: ${e.message}")
                     }
                 }
+
                 playerDimensions.remove(player)
             }
         } catch (e: Exception) {
@@ -183,5 +274,20 @@ object CheckManager {
 
     fun allChecks(): List<Check> {
         return checks.toList()
+    }
+
+    fun shutdown() {
+        try {
+            for (future in activeFutures.values) {
+                if (!future.isDone && !future.isCancelled) {
+                    future.cancel(false)
+                }
+            }
+            activeFutures.clear()
+
+            executorService.shutdown()
+        } catch (e: Exception) {
+            System.err.println("[Lucid] Error shutting down thread pool: ${e.message}")
+        }
     }
 }

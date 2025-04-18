@@ -1,6 +1,5 @@
 package org.afterlike.lucid.check
 
-import net.minecraft.client.Minecraft
 import net.minecraft.entity.player.EntityPlayer
 import net.minecraft.item.ItemBlock
 import java.util.concurrent.ConcurrentHashMap
@@ -69,7 +68,7 @@ class EagleCheck : Check() {
         val swingTick = lastSwingTick[target] ?: Long.MIN_VALUE
         val crouchDuration = (endTick - startTick).toInt()
 
-        val quickCrouch = crouchDuration <= 2 && crouchDuration > 0
+        val quickCrouch = crouchDuration in 1..2
         val swingOnCrouch = swingTick in endTick..(endTick + 1)
         val holdingBlock = target.heldItem?.item is ItemBlock
         val lookingDown = currentSample.pitch >= 70f
@@ -79,15 +78,15 @@ class EagleCheck : Check() {
         val movingDirectlyBackwards = abs(moveYaw) >= 160f
 
         var flagged = false
-        var checkType = ""
-        var vlAmount = 0.0
+        var checkType: String
+        val vlAmount: Double
 
         if (lookingDown && onGround && holdingBlock) {
             if (quickCrouch && swingOnCrouch) {
                 val durations = crouchDurations.getOrDefault(target, mutableListOf())
                 val hasConsistentPattern = durations.size >= 3 &&
                         durations.take(3).all { it <= 2 }
-                
+
                 // Calculate consistency score from 0.0 to 1.0
                 val consistencyScore = if (durations.size >= 3) {
                     val mean = durations.take(3).average()
@@ -134,52 +133,60 @@ class EagleCheck : Check() {
 
                 // Apply final VL calculation with consecutive bonus
                 val consecutiveMultiplier = 1.0 + (min(consecutive, 5) * 0.15)
-                val finalVL = vlAmount * pitchMultiplier * swingTimingMultiplier * 
-                              movementMultiplier * consistencyMultiplier * consecutiveMultiplier
+                val finalVL = vlAmount * pitchMultiplier * swingTimingMultiplier *
+                        movementMultiplier * consistencyMultiplier * consecutiveMultiplier
 
                 if (count >= 2) {
                     val itemName = target.heldItem?.displayName ?: "unknown block"
                     val patternInfo = if (hasConsistentPattern) durations.take(3).joinToString(",") + "t" else "n/a"
-                    
+
                     addVL(
                         target,
                         finalVL,
                         "eagle-$checkType | angle=${"%.1f".format(moveYaw)}° | pitch=${"%.1f".format(currentSample.pitch)}° | " +
-                        "crouch=${crouchDuration}t | swingTiming=${(swingTick - endTick)}t | " +
-                        "patterns=$count | durations=$patternInfo | item=$itemName | consistency=${"%.2f".format(consistencyScore)} | vl=${"%.1f".format(finalVL)}"
+                                "crouch=${crouchDuration}t | swingTiming=${(swingTick - endTick)}t | " +
+                                "patterns=$count | durations=$patternInfo | item=$itemName | consistency=${
+                                    "%.2f".format(
+                                        consistencyScore
+                                    )
+                                } | vl=${"%.1f".format(finalVL)}"
                     )
                     flagged = true
                     patternCount[target] = 0
                 }
             } else if (swingTick == tick && endTick >= tick - 1 && startTick == endTick - 1) {
                 checkType = "instant-sequence"
-                
+
                 // Apply multipliers based on pitch severity
                 val pitchMultiplier = when {
                     extremelyLookingDown -> 1.6
                     currentSample.pitch >= 80f -> 1.3
                     else -> 1.0
                 }
-                
+
                 // Apply multipliers based on movement direction
                 val movementMultiplier = when {
                     movingDirectlyBackwards -> 1.5
                     movingBackwards -> 1.2
                     else -> 1.0
                 }
-                
+
                 // Get consecutive violations
                 val consecutive = consecutiveViolations.getOrDefault(target, 0) + 1
                 consecutiveViolations[target] = consecutive
                 val consecutiveMultiplier = 1.0 + (min(consecutive, 5) * 0.15)
-                
+
                 vlAmount = 3.5 * pitchMultiplier * movementMultiplier * consecutiveMultiplier
                 val itemName = target.heldItem?.displayName ?: "unknown block"
-                
+
                 addVL(
                     target,
                     vlAmount,
-                    "eagle-$checkType | crouch=${crouchDuration}t | item=$itemName | pitch=${"%.1f".format(currentSample.pitch)}° | angle=${"%.1f".format(moveYaw)}° | consecutive=$consecutive | vl=${"%.1f".format(vlAmount)}"
+                    "eagle-$checkType | crouch=${crouchDuration}t | item=$itemName | pitch=${"%.1f".format(currentSample.pitch)}° | angle=${
+                        "%.1f".format(
+                            moveYaw
+                        )
+                    }° | consecutive=$consecutive | vl=${"%.1f".format(vlAmount)}"
                 )
                 flagged = true
                 patternCount[target] = 0
@@ -196,18 +203,16 @@ class EagleCheck : Check() {
 
         if (!flagged && getPlayerVL(target) > 0) {
             val currentVL = getPlayerVL(target)
-            
-            // Dynamic decay based on current VL - decay faster at higher VL levels
+
             val decayRate = when {
                 currentVL > 8.0 -> 0.2
                 currentVL > 5.0 -> 0.15
                 currentVL > 2.0 -> 0.1
                 else -> 0.05
             }
-            
+
             decayVL(target, decayRate)
-            
-            // Reset consecutive violations counter after significant decay
+
             if (currentVL <= vlThreshold * 0.25) {
                 consecutiveViolations[target] = 0
             }

@@ -7,7 +7,6 @@ import net.minecraft.item.ItemPotion
 import net.minecraft.item.ItemSword
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.min
-import kotlin.math.sqrt
 
 class NoSlowCheck : Check() {
     override val name = "NoSlow"
@@ -29,7 +28,7 @@ class NoSlowCheck : Check() {
 
         val currentSample = getPlayerSample(target) ?: return
         val currentTick = currentSample.tick
-        
+
         val isSprinting = target.isSprinting
         val isUsingItem = target.isUsingItem
         val isRiding = target.ridingEntity != null
@@ -68,26 +67,23 @@ class NoSlowCheck : Check() {
                         heldItem.item is ItemSword -> "sword"
                         else -> "item"
                     }
-                    
-                    // Get movement speed
+
                     val speed = calculateSpeed(currentSample.deltaX, currentSample.deltaZ)
-                    
-                    // Track consecutive violations
+
                     val consecutive = consecutiveViolations.getOrDefault(target, 0) + 1
                     consecutiveViolations[target] = consecutive
-                    
-                    // Calculate VL amount based on consecutive violations
+
                     val baseVL = 1.0
                     val consecutiveMultiplier = 1.0 + (min(consecutive - 1, 4) * 0.25)
                     val finalVL = baseVL * consecutiveMultiplier
-                    
+
                     val itemName = heldItem?.displayName ?: "unknown item"
-                    
+
                     addVL(
-                        target, 
-                        finalVL, 
+                        target,
+                        finalVL,
                         "no-slowdown | item=$itemName ($itemType) | speed=${"%.2f".format(speed)} | " +
-                        "sprinting=true | consecutive=$consecutive | vl=${"%.1f".format(finalVL)}"
+                                "sprinting=true | consecutive=$consecutive | vl=${"%.1f".format(finalVL)}"
                     )
                 }
             }
@@ -95,15 +91,14 @@ class NoSlowCheck : Check() {
             val currentVL = getPlayerVL(target)
             if (currentVL > 0) {
                 val decayRate = when {
-                    currentVL > 7.5 -> 0.5    // Decay faster at high VL
-                    currentVL > 5.0 -> 0.4    // Medium decay at medium VL
-                    currentVL > 2.5 -> 0.3    // Slower decay at lower VL
-                    else -> 0.2               // Very slow decay at very low VL
+                    currentVL > 7.5 -> 0.5
+                    currentVL > 5.0 -> 0.4
+                    currentVL > 2.5 -> 0.3
+                    else -> 0.2
                 }
-                
+
                 decayVL(target, decayRate)
-                
-                // Reset consecutive violations after significant decay
+
                 if (currentVL <= vlThreshold * 0.2) {
                     consecutiveViolations[target] = 0
                 }
