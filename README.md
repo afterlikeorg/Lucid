@@ -4,7 +4,22 @@
 
 ## Screenshots
 
-![Lucid Anticheat Menu](.github/assets/menu.png)
+### Checks Tab
+
+![Checks Tab](.github/assets/checks.png)
+
+### Appearance Tab
+
+![Appearance Tab](.github/assets/appearance.png)
+
+### Settings Tab
+
+![Settings Tab](.github/assets/settings.png)
+
+### Customization Examples
+
+![Blue Theme](.github/assets/custom-blue.png)
+![Pink Theme](.github/assets/custom-pink.png)
 
 ## Checks
 
@@ -29,4 +44,5 @@ Requires **Forge 1.8.9**
 
 Licensed under the [GNU General Public License v3.0](LICENSE).
 
+> [!TIP]
 > Found a bug or want to contribute? Open an issue or submit a pull request!

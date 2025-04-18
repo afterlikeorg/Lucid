@@ -134,7 +134,7 @@ abstract class Check {
                 val regularName = player.name
 
                 try {
-                    val vlText = if (Config.showVLInFlag) " §7[VL: ${vlThreshold}]" else ""
+                    val vlText = if (Config.showVLInFlag) " §7[VL:${vlThreshold}]" else ""
                     val messageBase =
                         ChatComponentText("${Config.getFormattedPrefix()}$displayName §7failed §${Config.messageColor}$name$vlText")
 

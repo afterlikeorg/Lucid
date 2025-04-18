@@ -735,7 +735,7 @@ class LucidGui : GuiScreen() {
             )
             Gui.drawRect(contentLeft, previewY, contentLeft + 1, previewY + previewBoxHeight, borderColor.rgb)
 
-            val vlText = if (Config.showVLInFlag) " §7[VL: 10]" else ""
+            val vlText = if (Config.showVLInFlag) " §7[VL:10]" else ""
             val wdrText = if (Config.showWDR) " §c[WDR]" else ""
 
             fontRendererObj.drawStringWithShadow(
