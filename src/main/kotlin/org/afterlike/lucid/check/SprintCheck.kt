@@ -22,7 +22,7 @@ class SprintCheck : Check() {
         if (target == mc.thePlayer || target.ridingEntity != null) return
 
         if (detectTeleport(target)) return
-        
+
         if (isImmune(target)) return
 
         val current = getPlayerSample(target) ?: return

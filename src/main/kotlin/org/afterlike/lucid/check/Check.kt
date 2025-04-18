@@ -31,12 +31,12 @@ abstract class Check {
     private val MAX_PLAYERS_TRACKED = 100
 
     protected val mc: Minecraft = Minecraft.getMinecraft()
-    
+
     private val immunityExpireTimes = ConcurrentHashMap<UUID, Long>()
-    
-    protected val immunityDuration: Long = 2500L
-    
-    protected val teleportDistanceThreshold: Double = 16.0
+
+    private val immunityDuration: Long = 2500L
+
+    private val teleportDistanceThreshold: Double = 16.0
 
     open fun onPacket(packet: Packet<*>) {
         try {
@@ -255,33 +255,33 @@ abstract class Check {
     protected fun calculateSpeed(deltaX: Double, deltaZ: Double): Double {
         return sqrt(deltaX * deltaX + deltaZ * deltaZ)
     }
-    
+
     protected fun detectTeleport(player: EntityPlayer): Boolean {
         val currentSample = getPlayerSample(player) ?: return false
         val prevSample = getPreviousSample(player) ?: return false
-        
+
         if (!PlayerDataManager.hasDataFor(player)) {
             grantImmunity(player, "new player")
             return true
         }
-        
+
         val deltaX = currentSample.posX - prevSample.posX
         val deltaY = currentSample.posY - prevSample.posY
         val deltaZ = currentSample.posZ - prevSample.posZ
         val distanceSquared = deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ
-        
+
         if (distanceSquared > teleportDistanceThreshold) {
-            grantImmunity(player, "teleport detected (distance: ${Math.sqrt(distanceSquared).toInt()})")
+            grantImmunity(player, "teleport detected (distance: ${sqrt(distanceSquared).toInt()})")
             return true
         }
-        
+
         return false
     }
-    
+
     protected fun isImmune(player: EntityPlayer): Boolean {
         val currentTime = System.currentTimeMillis()
         val expireTime = immunityExpireTimes[player.uniqueID] ?: return false
-        
+
         if (currentTime < expireTime) {
             return true
         } else {
@@ -289,14 +289,11 @@ abstract class Check {
             return false
         }
     }
-    
-    protected fun grantImmunity(player: EntityPlayer, reason: String) {
+
+    private fun grantImmunity(player: EntityPlayer, reason: String) {
         val currentTime = System.currentTimeMillis()
         immunityExpireTimes[player.uniqueID] = currentTime + immunityDuration
-        
-        if (Config.verboseMode) {
-            sendMessage("${Config.getFormattedPrefix()}§cVerbose: §aGranting §f${player.name} §aimmunity for §f${name} §acheck (${reason})")
-        }
+//        println("[Lucid] Granting ${player.name} immunity for $name check $reason")
     }
 
     protected fun checkSurroundingBlocks(player: EntityPlayer, height: Int = 1): Boolean {

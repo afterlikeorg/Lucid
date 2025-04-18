@@ -5,13 +5,6 @@ import net.minecraft.entity.player.EntityPlayer
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.collections.ArrayDeque
-import kotlin.collections.List
-import kotlin.collections.MutableList
-import kotlin.collections.elementAt
-import kotlin.collections.getOrPut
-import kotlin.collections.isNotEmpty
-import kotlin.collections.mutableListOf
-import kotlin.collections.toList
 import kotlin.math.sqrt
 
 object PlayerDataManager {

@@ -44,7 +44,7 @@ class RotationCheck : Check() {
             if (target == mc.thePlayer) return
 
             if (detectTeleport(target)) return
-            
+
             if (isImmune(target)) return
 
             val currentSample = getPlayerSample(target) ?: return
