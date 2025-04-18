@@ -16,23 +16,31 @@ class VelocityCheck : Check() {
     private data class HitEntry(
         val startTick: Long,
         val startPos: Triple<Double, Double, Double>,
-        val startMotionH: Double
+        val startMotionH: Double,
+        val wasInAir: Boolean,
+        val consecutiveHits: Int
     )
 
     private val pendingHits = ConcurrentHashMap<Int, HitEntry>()
+    private val lastHitTimes = ConcurrentHashMap<Int, Long>()
+    private val hitCounter = ConcurrentHashMap<Int, Int>()
 
-    private val WINDOW_TICKS = 4
-
-    private val MIN_KNOCKBACK_V = 0.42
+    private val WINDOW_TICKS = 5
+    private val COMBO_WINDOW_TICKS = 20
+    
+    // Lowered vertical threshold for better detection
+    private val MIN_KNOCKBACK_V = 0.35
     private val EXPECTED_KNOCKBACK_H_STILL = 0.62
     private val EXPECTED_KNOCKBACK_H_MOVING = 0.2
     private val MOVEMENT_THRESHOLD = 0.015
-
-    private val BASE_VL = 2.0
+    
+    // Lower BASE_VL means violations accumulate more slowly
+    private val BASE_VL = 1.5
 
     init {
         CheckManager.register(this)
-        vlThreshold = 8
+        // Increase VL threshold to require more violations
+        vlThreshold = 12
     }
 
     override fun onUpdate(target: EntityPlayer) {
@@ -43,14 +51,30 @@ class VelocityCheck : Check() {
 
         val prevHurt = prevSample.hurtTime
         val currHurt = currentSample.hurtTime
+        val currentTick = currentSample.tick
 
+        // Track consecutive hits
         if (prevHurt <= 0 && currHurt > 0) {
+            val lastHitTime = lastHitTimes.getOrDefault(target.entityId, 0L)
+            val timeSinceLastHit = currentTick - lastHitTime
+            
+            // Update consecutive hit counter
+            if (timeSinceLastHit <= COMBO_WINDOW_TICKS) {
+                hitCounter[target.entityId] = hitCounter.getOrDefault(target.entityId, 0) + 1
+            } else {
+                hitCounter[target.entityId] = 1
+            }
+            
+            lastHitTimes[target.entityId] = currentTick
+            
             val startMotionH = currentSample.velocity
             val startPos = Triple(currentSample.posX, currentSample.posY, currentSample.posZ)
             pendingHits[target.entityId] = HitEntry(
                 currentSample.tick,
                 startPos,
-                startMotionH
+                startMotionH,
+                !currentSample.onGround,
+                hitCounter.getOrDefault(target.entityId, 1)
             )
         }
 
@@ -67,35 +91,47 @@ class VelocityCheck : Check() {
                     val horizontalDist = sqrt(dx * dx + dz * dz)
                     val verticalDist = abs(dy)
 
-                    val expectedH = if (entry.startMotionH <= MOVEMENT_THRESHOLD)
-                        EXPECTED_KNOCKBACK_H_STILL
-                    else
-                        EXPECTED_KNOCKBACK_H_MOVING
+                    // Adjust expected knockback based on player state
+                    val isMovingFast = entry.startMotionH > 0.1
+                    val expectedH = when {
+                        entry.consecutiveHits > 1 -> EXPECTED_KNOCKBACK_H_MOVING * 0.8  // Reduce expected knockback for combos
+                        isMovingFast -> EXPECTED_KNOCKBACK_H_MOVING
+                        else -> EXPECTED_KNOCKBACK_H_STILL
+                    }
+                    
+                    // Adjust vertical knockback expectation for players in air (combos)
+                    val expectedV = if (entry.wasInAir || entry.consecutiveHits > 1) {
+                        MIN_KNOCKBACK_V * 0.7  // Reduce expected vertical knockback for air hits
+                    } else {
+                        MIN_KNOCKBACK_V
+                    }
 
-                    // Horizontal check
-                    if (horizontalDist < expectedH) {
+                    // Horizontal check - only if ratio is very low (more lenient)
+                    if (horizontalDist < expectedH * 0.5) {
                         val ratio = horizontalDist / expectedH
-                        val vlToAdd = (1.0 - ratio) * BASE_VL * calculateSeverityMultiplier(ratio)
+                        // Lower VL addition for consecutive hits
+                        val vlToAdd = (1.0 - ratio) * BASE_VL * calculateSeverityMultiplier(ratio) * 
+                                getConsecutiveHitMultiplier(entry.consecutiveHits)
                         
                         addVL(
                             target,
                             vlToAdd,
                             "reduced horizontal knockback | moved=${"%.3f".format(horizontalDist)} | " +
                                     "expected≥${"%.3f".format(expectedH)} | ratio=${"%.0f".format(ratio * 100)}% | " +
-                                    "vl=${"%.1f".format(vlToAdd)}"
+                                    "combo=${entry.consecutiveHits} | vl=${"%.1f".format(vlToAdd)}"
                         )
                     }
 
-                    // Vertical check
-                    if (verticalDist < MIN_KNOCKBACK_V) {
-                        val ratio = verticalDist / MIN_KNOCKBACK_V
+                    // Vertical check - only if ratio is very low and not in combo
+                    if (verticalDist < expectedV * 0.5 && entry.consecutiveHits <= 1 && !entry.wasInAir) {
+                        val ratio = verticalDist / expectedV
                         val vlToAdd = (1.0 - ratio) * BASE_VL * calculateSeverityMultiplier(ratio)
                         
                         addVL(
                             target,
                             vlToAdd,
                             "reduced vertical knockback | moved=${"%.3f".format(verticalDist)} | " +
-                                    "expected≥${"%.3f".format(MIN_KNOCKBACK_V)} | ratio=${"%.0f".format(ratio * 100)}% | " +
+                                    "expected≥${"%.3f".format(expectedV)} | ratio=${"%.0f".format(ratio * 100)}% | " +
                                     "vl=${"%.1f".format(vlToAdd)}"
                         )
                     }
@@ -107,10 +143,18 @@ class VelocityCheck : Check() {
 
     private fun calculateSeverityMultiplier(ratio: Double): Double {
         return when {
-            ratio < 0.2 -> 2.0  // Less than 20% of expected - very severe
-            ratio < 0.4 -> 1.5  // 20-40% of expected - severe
-            ratio < 0.6 -> 1.2  // 40-60% of expected - moderate
-            else -> 1.0         // 60-100% of expected - minor
+            ratio < 0.1 -> 2.0  // Less than 10% of expected - very severe
+            ratio < 0.3 -> 1.5  // 10-30% of expected - severe
+            ratio < 0.5 -> 1.0  // 30-50% of expected - moderate
+            else -> 0.5         // Over 50% - minor
+        }
+    }
+    
+    private fun getConsecutiveHitMultiplier(hits: Int): Double {
+        return when {
+            hits >= 3 -> 0.3  // Third or more hit in combo - very low VL
+            hits == 2 -> 0.5  // Second hit in combo - low VL
+            else -> 1.0       // First hit - normal VL
         }
     }
 
@@ -137,7 +181,26 @@ class VelocityCheck : Check() {
             
             val fallDetected = hasStartFall && hasStopFall
             
-            return fallDetected
+            if (fallDetected) return true
+        }
+        
+        // Check if player is moving too fast (possibly speed/velocity potion effect)
+        if (history.size >= 3) {
+            val recentHistory = history.takeLast(3)
+            val hasHighSpeed = recentHistory.any { it.velocity > 0.4 }
+            if (hasHighSpeed) return true
+        }
+        
+        // Check for player directional change which can reduce knockback
+        if (history.size >= 4) {
+            val samples = history.takeLast(4)
+            val directionChanges = samples.zipWithNext().count { (a, b) ->
+                val angleA = getMoveAngle(a.deltaX, a.deltaZ)
+                val angleB = getMoveAngle(b.deltaX, b.deltaZ)
+                val diff = abs((angleA - angleB + 180) % 360 - 180)
+                diff > 90
+            }
+            if (directionChanges >= 2) return true
         }
         
         return false
@@ -148,7 +211,9 @@ class VelocityCheck : Check() {
         val pos = player.position
         val offsets = listOf(
             BlockPos(0, 0, 1), BlockPos(0, 0, -1),
-            BlockPos(1, 0, 0), BlockPos(-1, 0, 0)
+            BlockPos(1, 0, 0), BlockPos(-1, 0, 0),
+            BlockPos(1, 0, 1), BlockPos(-1, 0, -1),
+            BlockPos(1, 0, -1), BlockPos(-1, 0, 1)
         )
         for (off in offsets) {
             val side = pos.add(off)
@@ -162,8 +227,12 @@ class VelocityCheck : Check() {
     override fun onPlayerRemove(player: EntityPlayer?) {
         if (player != null) {
             pendingHits.remove(player.entityId)
+            lastHitTimes.remove(player.entityId)
+            hitCounter.remove(player.entityId)
         } else {
             pendingHits.clear()
+            lastHitTimes.clear()
+            hitCounter.clear()
         }
         super.onPlayerRemove(player)
     }
