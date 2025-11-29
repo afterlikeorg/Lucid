@@ -1,0 +1,13 @@
+{
+  "package": "org.afterlike.lucid.platform.mixin",
+  "refmap": "mixins.lucid.refmap.json",
+  "minVersion": "0.7",
+  "compatibilityLevel": "JAVA_8",
+  "mixins": [
+    "network.NetworkManagerMixin",
+    "world.WorldMixin"
+  ],
+  "client": [
+    "client.MinecraftMixin"
+  ]
+}
