@@ -7,6 +7,14 @@ import net.minecraft.util.BlockPos
 import org.afterlike.lucid.core.type.PlayerSample
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.collections.ArrayDeque
+import kotlin.collections.List
+import kotlin.collections.MutableList
+import kotlin.collections.elementAt
+import kotlin.collections.getOrPut
+import kotlin.collections.isNotEmpty
+import kotlin.collections.mutableListOf
+import kotlin.collections.toList
 import kotlin.math.floor
 
 // this class handles saving and retrieving player samples

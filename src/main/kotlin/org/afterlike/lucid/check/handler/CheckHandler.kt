@@ -3,19 +3,13 @@ package org.afterlike.lucid.check.handler
 import best.azura.eventbus.handler.EventHandler
 import net.minecraft.client.Minecraft
 import net.minecraft.entity.player.EntityPlayer
-import org.afterlike.lucid.core.Lucid
 import org.afterlike.lucid.check.api.BaseCheck
-import org.afterlike.lucid.check.impl.AutoBlockCheck
-import org.afterlike.lucid.check.impl.EagleCheck
-import org.afterlike.lucid.check.impl.NoSlowCheck
-import org.afterlike.lucid.check.impl.RotationCheck
-import org.afterlike.lucid.check.impl.ScaffoldCheck
-import org.afterlike.lucid.check.impl.SprintCheck
-import org.afterlike.lucid.check.impl.VelocityCheck
-import org.afterlike.lucid.core.type.EventPhase
+import org.afterlike.lucid.check.impl.*
+import org.afterlike.lucid.core.Lucid
 import org.afterlike.lucid.core.event.game.GameTickEvent
 import org.afterlike.lucid.core.event.world.WorldUnloadEvent
 import org.afterlike.lucid.core.handler.PlayerSampleHandler
+import org.afterlike.lucid.core.type.EventPhase
 import org.apache.logging.log4j.LogManager
 import java.util.*
 import java.util.concurrent.*
@@ -29,10 +23,7 @@ object CheckHandler {
     private val activePlayerSet = Collections.newSetFromMap(ConcurrentHashMap<EntityPlayer, Boolean>())
     private val activeFutureMap = ConcurrentHashMap<EntityPlayer, Future<*>>()
 
-    private var lastProcessedTick = 0L
-
     private var lastSampleCollectionTime = 0L
-
     private const val SAMPLE_THROTTLE_MS = 16
 
     private val mc = Minecraft.getMinecraft()
@@ -66,50 +57,36 @@ object CheckHandler {
         var count = 0
 
         for (constructor in checkConstructors) {
-            try {
-                val check = constructor()
-                registerCheck(check)
-                count++
-            } catch (e: Exception) {
-                logger.error("Failed to init ${constructor::class.simpleName}", e)
-            }
+            val check = constructor()
+            registerCheck(check)
+            count++
         }
 
         logger.info("Successfully initialized $count checks.")
     }
 
-
     @EventHandler
     fun onGameTick(event: GameTickEvent) {
         if (event.phase != EventPhase.POST) return
+        if (checks.isEmpty()) return
 
-        try {
-            if (checks.isEmpty()) return
-            val thePlayer = mc.thePlayer ?: return
-            val theWorld = mc.theWorld ?: return
+        val thePlayer = mc.thePlayer ?: return
+        val theWorld = mc.theWorld ?: return
 
-            val currentTick = theWorld.totalWorldTime
-            lastProcessedTick = currentTick
+        val currentTime = System.currentTimeMillis()
+        val shouldCollectSamples = currentTime - lastSampleCollectionTime >= SAMPLE_THROTTLE_MS
 
-            val currentTime = System.currentTimeMillis()
-            val shouldCollectSamples = currentTime - lastSampleCollectionTime >= SAMPLE_THROTTLE_MS
+        if (shouldCollectSamples) {
+            lastSampleCollectionTime = currentTime
+            activePlayerSet.clear()
 
-            if (shouldCollectSamples) {
-                lastSampleCollectionTime = currentTime
-                activePlayerSet.clear()
-
-                for (entity in theWorld.playerEntities) {
-                    if (entity !== thePlayer && entity.isEntityAlive) {
-                        activePlayerSet.add(entity)
-
-                        PlayerSampleHandler.collectSample(entity)
-
-                        checkPlayer(entity)
-                    }
+            for (entity in theWorld.playerEntities) {
+                if (entity !== thePlayer && entity.isEntityAlive) {
+                    activePlayerSet.add(entity)
+                    PlayerSampleHandler.collectSample(entity)
+                    checkPlayer(entity)
                 }
             }
-        } catch (e: Exception) {
-            logger.error("Error in client tick handler: ${e.message}")
         }
     }
 
@@ -122,11 +99,9 @@ object CheckHandler {
         }
         activeFutureMap.clear()
         activePlayerSet.clear()
-        
         PlayerSampleHandler.removePlayer(null)
     }
 
-    // submit player for async checks
     private fun checkPlayer(player: EntityPlayer) {
         activeFutureMap[player]?.let { future ->
             if (!future.isDone && !future.isCancelled) {
@@ -135,13 +110,8 @@ object CheckHandler {
         }
 
         val future = executorService.submit {
-            try {
-                runChecksForPlayer(player)
-            } catch (e: Exception) {
-                logger.error("Error in async check thread for {}: {}", player.name, e.message)
-            } finally {
-                activeFutureMap.remove(player)
-            }
+            runChecksForPlayer(player)
+            activeFutureMap.remove(player)
         }
 
         activeFutureMap[player] = future
@@ -162,7 +132,5 @@ object CheckHandler {
         }
     }
 
-    fun getChecks(): List<BaseCheck> {
-        return checks.toList()
-    }
+    fun getChecks(): List<BaseCheck> = checks.toList()
 }

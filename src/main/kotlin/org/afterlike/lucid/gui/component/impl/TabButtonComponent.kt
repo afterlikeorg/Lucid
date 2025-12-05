@@ -1,18 +1,18 @@
-package org.afterlike.lucid.gui.tab.base
+package org.afterlike.lucid.gui.component.impl
 
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.Gui
 import org.afterlike.lucid.gui.component.base.BaseComponent
 import org.afterlike.lucid.util.ThemeUtil
 
-class BaseTab(
+class TabButtonComponent(
     id: Int,
     x: Int,
     y: Int,
     width: Int,
     height: Int,
     val text: String,
-    val action: TabAction,
+    val tabIndex: Int,
     val isActive: Boolean = false
 ) : BaseComponent(id, x, y, width, height) {
 
@@ -46,8 +46,5 @@ class BaseTab(
             textColor.rgb
         )
     }
-
-    enum class TabAction {
-        CHECKS, APPEARANCE, SETTINGS
-    }
 }
+

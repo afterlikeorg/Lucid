@@ -2,8 +2,8 @@ package org.afterlike.lucid.check.impl
 
 import net.minecraft.entity.player.EntityPlayer
 import org.afterlike.lucid.check.api.BaseCheck
-import org.afterlike.lucid.core.handler.PlayerSampleHandler
 import org.afterlike.lucid.core.event.world.EntityLeaveEvent
+import org.afterlike.lucid.core.handler.PlayerSampleHandler
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.abs
 import kotlin.math.max

@@ -3,8 +3,8 @@ package org.afterlike.lucid.core.command
 import net.minecraft.client.Minecraft
 import net.minecraft.command.CommandBase
 import net.minecraft.command.ICommandSender
-import org.afterlike.lucid.gui.LucidGuiScreen
 import org.afterlike.lucid.core.handler.DelayedTaskHandler
+import org.afterlike.lucid.gui.screen.LucidGuiScreen
 
 class LucidCommand : CommandBase() {
     override fun getCommandName(): String = "lucid"

@@ -4,7 +4,7 @@ import net.minecraft.client.gui.FontRenderer
 import java.awt.Color
 
 object GuiUtil {
-    
+
     fun getMinecraftColor(code: String): Color {
         return when (code) {
             "0" -> Color(0, 0, 0)
@@ -26,7 +26,7 @@ object GuiUtil {
             else -> Color(0, 170, 170)
         }
     }
-    
+
     fun tintColor(baseColor: Color, themeColor: Color, intensity: Float = 0.3f): Color {
         val r = (baseColor.red * (1 - intensity) + themeColor.red * intensity).toInt().coerceIn(0, 255)
         val g = (baseColor.green * (1 - intensity) + themeColor.green * intensity).toInt().coerceIn(0, 255)
@@ -34,7 +34,7 @@ object GuiUtil {
         val a = baseColor.alpha
         return Color(r, g, b, a)
     }
-    
+
     fun wrapText(text: String, maxWidth: Int, fontRenderer: FontRenderer): List<String> {
         val words = text.split(" ")
         val result = mutableListOf<String>()
@@ -58,7 +58,7 @@ object GuiUtil {
 
         return result
     }
-    
+
     val colorCodes = listOf(
         "0" to "§0Black",
         "1" to "§1Dark Blue",

@@ -6,8 +6,8 @@ import net.minecraft.item.ItemFood
 import net.minecraft.item.ItemPotion
 import net.minecraft.item.ItemSword
 import org.afterlike.lucid.check.api.BaseCheck
-import org.afterlike.lucid.core.handler.PlayerSampleHandler
 import org.afterlike.lucid.core.event.world.EntityLeaveEvent
+import org.afterlike.lucid.core.handler.PlayerSampleHandler
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.min
 

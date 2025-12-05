@@ -43,12 +43,7 @@ class LinkComponent(
     }
 
     fun onClick() {
-        try {
-            val confirmGui = GuiConfirmOpenLink(parentScreen, url, 0, true)
-            mc.displayGuiScreen(confirmGui)
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+        val confirmGui = GuiConfirmOpenLink(parentScreen, url, 0, true)
+        mc.displayGuiScreen(confirmGui)
     }
 }
-

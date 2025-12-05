@@ -1,165 +1,149 @@
 package org.afterlike.lucid.core.handler
 
+import com.google.gson.Gson
+import com.google.gson.GsonBuilder
 import net.minecraft.client.Minecraft
 import org.afterlike.lucid.check.handler.CheckHandler
-import org.afterlike.lucid.core.type.ConfigEntry
 import org.apache.logging.log4j.LogManager
-import java.io.BufferedReader
-import java.io.BufferedWriter
 import java.io.File
-import java.io.FileReader
-import java.io.FileWriter
-import java.util.Properties
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.locks.ReentrantReadWriteLock
-import kotlin.concurrent.read
-import kotlin.concurrent.write
 
 object ConfigHandler {
+
     private val logger = LogManager.getLogger(ConfigHandler::class.java)
-    private val configEntries = ConcurrentHashMap<String, ConfigEntry<*>>()
-    private val configLock = ReentrantReadWriteLock()
+    private val gson: Gson = GsonBuilder().setPrettyPrinting().create()
 
-    private val configFile by lazy {
-        try {
-            val mcDir = Minecraft.getMinecraft()?.mcDataDir ?: File(".")
-            File(mcDir, "config/lucid.properties").apply {
-                parentFile?.mkdirs()
-            }
-        } catch (e: Exception) {
-            logger.error("Failed to create config file path: ${e.message}")
-            File("config/lucid.properties")
+    private val configFile: File by lazy {
+        val mcDir = Minecraft.getMinecraft()?.mcDataDir ?: File(".")
+        File(mcDir, "config/lucid.json").apply { parentFile?.mkdirs() }
+    }
+
+    private var config = LucidConfig()
+
+    var playSoundOnFlag: Boolean
+        get() = config.settings.playSoundOnFlag
+        set(value) {
+            config.settings.playSoundOnFlag = value
         }
-    }
 
-    val playSoundOnFlag = register("flags.playSound", true)
-    val verboseMode = register("flags.verbose", false)
-    val flagCooldown = register("flags.cooldown", 5) { it in 1..60 }
+    var verboseMode: Boolean
+        get() = config.settings.verboseMode
+        set(value) {
+            config.settings.verboseMode = value
+        }
 
-    val messageColor = register("appearance.color", "3") { it.length == 1 && it[0] in "0123456789abcdef" }
-    val messageBold = register("appearance.bold", false)
-    val messageSymbol = register("appearance.symbol", ">") { it == ">" || it == "»" }
-    val showVLInFlag = register("appearance.showVL", false)
-    val showWDR = register("appearance.showWDR", true)
+    var flagCooldown: Int
+        get() = config.settings.flagCooldown
+        set(value) {
+            config.settings.flagCooldown = value.coerceIn(1, 60)
+        }
 
-    private fun <T> register(key: String, defaultValue: T, validator: (T) -> Boolean = { true }): ConfigEntry<T> {
-        val entry = ConfigEntry(key, defaultValue, validator)
-        configEntries[key] = entry
-        return entry
-    }
+    var messageColor: String
+        get() = config.appearance.color
+        set(value) {
+            if (value.length == 1 && value[0] in "0123456789abcdef") {
+                config.appearance.color = value
+            }
+        }
 
-    fun registerCheckConfig(checkName: String, enabled: Boolean, vlThreshold: Int): Pair<ConfigEntry<Boolean>, ConfigEntry<Int>> {
-        val enabledEntry = register("check.$checkName.enabled", enabled)
-        val thresholdEntry = register("check.$checkName.vlThreshold", vlThreshold) { it > 0 }
-        return Pair(enabledEntry, thresholdEntry)
-    }
+    var messageBold: Boolean
+        get() = config.appearance.bold
+        set(value) {
+            config.appearance.bold = value
+        }
+
+    var messageSymbol: String
+        get() = config.appearance.symbol
+        set(value) {
+            if (value == ">" || value == "»") {
+                config.appearance.symbol = value
+            }
+        }
+
+    var showVLInFlag: Boolean
+        get() = config.appearance.showVL
+        set(value) {
+            config.appearance.showVL = value
+        }
+
+    var showWDR: Boolean
+        get() = config.appearance.showWDR
+        set(value) {
+            config.appearance.showWDR = value
+        }
 
     fun load() {
-        configLock.read {
-            try {
-                if (!configFile.exists()) {
-                    logger.info("Config file not found, creating with defaults")
-                    save()
-                    return
-                }
-
-                val properties = Properties()
-                BufferedReader(FileReader(configFile)).use { reader ->
-                    properties.load(reader)
-                }
-
-                var loadedCount = 0
-                var failedCount = 0
-
-                configEntries.forEach { (key, entry) ->
-                    val stringValue = properties.getProperty(key)
-                    if (stringValue != null) {
-                        if (entry.deserialize(stringValue)) {
-                            loadedCount++
-                        } else {
-                            logger.warn("Failed to parse config value for '$key': $stringValue")
-                            failedCount++
-                        }
-                    }
-                }
-
-                logger.info("Loaded $loadedCount config entries${if (failedCount > 0) " ($failedCount failed)" else ""}")
-
-                CheckHandler.getChecks().forEach { check ->
-                    try {
-                        val (enabledEntry, thresholdEntry) = registerCheckConfig(
-                            check.name,
-                            check.enabled,
-                            check.violationLevelThreshold
-                        )
-                        check.enabled = enabledEntry.value
-                        check.violationLevelThreshold = thresholdEntry.value
-                    } catch (e: Exception) {
-                        logger.error("Failed to load config for check ${check.name}: ${e.message}")
-                    }
-                }
-
-            } catch (e: Exception) {
-                logger.error("Failed to load config: ${e.message}", e)
-                resetToDefaults()
-            }
+        if (!configFile.exists()) {
+            logger.info("Config file not found, creating with defaults")
+            save()
+            return
         }
+
+        val loadedConfig = configFile.reader().use { reader ->
+            gson.fromJson(reader, LucidConfig::class.java)
+        }
+
+        if (loadedConfig != null) {
+            config = loadedConfig
+            logger.info("Loaded config from ${configFile.path}")
+        }
+
+        syncChecksFromConfig()
     }
 
     fun save() {
-        configLock.write {
-            try {
-                configFile.parentFile?.mkdirs()
+        syncChecksToConfig()
 
-                CheckHandler.getChecks().forEach { check ->
-                    try {
-                        val (enabledEntry, thresholdEntry) = registerCheckConfig(
-                            check.name,
-                            check.enabled,
-                            check.violationLevelThreshold
-                        )
-                        enabledEntry.value = check.enabled
-                        thresholdEntry.value = check.violationLevelThreshold
-                    } catch (e: Exception) {
-                        logger.error("Failed to save config for check ${check.name}: ${e.message}")
-                    }
-                }
+        configFile.writer().use { writer ->
+            gson.toJson(config, writer)
+        }
+        logger.info("Saved config to ${configFile.path}")
+    }
 
-                val properties = Properties()
-                configEntries.forEach { (key, entry) ->
-                    properties.setProperty(key, entry.serialize())
-                }
-
-                BufferedWriter(FileWriter(configFile)).use { writer ->
-                    properties.store(writer, "Lucid Configuration")
-                }
-
-                logger.info("Saved ${configEntries.size} config entries")
-
-            } catch (e: Exception) {
-                logger.error("Failed to save config: ${e.message}", e)
+    private fun syncChecksFromConfig() {
+        CheckHandler.getChecks().forEach { check ->
+            config.checks[check.name]?.let { checkConfig ->
+                check.enabled = checkConfig.enabled
+                check.violationLevelThreshold = checkConfig.vlThreshold
             }
         }
     }
 
-    fun resetToDefaults() {
-        configLock.write {
-            configEntries.values.forEach { it.reset() }
-            logger.info("Reset all config entries to defaults")
-            try {
-                save()
-            } catch (e: Exception) {
-                logger.error("Failed to save default config: ${e.message}")
-            }
+    private fun syncChecksToConfig() {
+        CheckHandler.getChecks().forEach { check ->
+            config.checks[check.name] = CheckConfig(
+                enabled = check.enabled,
+                vlThreshold = check.violationLevelThreshold
+            )
         }
     }
 
     fun getFormattedPrefix(): String {
-        val boldCode = if (messageBold.value) "§l" else ""
-        return "§${messageColor.value}$boldCode" + "Lucid §8${messageSymbol.value} "
+        val boldCode = if (messageBold) "§l" else ""
+        return "§${messageColor}$boldCode" + "Lucid §8${messageSymbol} "
     }
 
-    fun getEntry(key: String): ConfigEntry<*>? = configEntries[key]
+    data class LucidConfig(
+        val settings: SettingsConfig = SettingsConfig(),
+        val appearance: AppearanceConfig = AppearanceConfig(),
+        val checks: MutableMap<String, CheckConfig> = mutableMapOf()
+    )
 
-    fun getAllEntries(): Map<String, ConfigEntry<*>> = configEntries.toMap()
+    data class SettingsConfig(
+        var playSoundOnFlag: Boolean = true,
+        var verboseMode: Boolean = false,
+        var flagCooldown: Int = 5
+    )
+
+    data class AppearanceConfig(
+        var color: String = "3",
+        var bold: Boolean = false,
+        var symbol: String = ">",
+        var showVL: Boolean = false,
+        var showWDR: Boolean = true
+    )
+
+    data class CheckConfig(
+        var enabled: Boolean = true,
+        var vlThreshold: Int = 10
+    )
 }

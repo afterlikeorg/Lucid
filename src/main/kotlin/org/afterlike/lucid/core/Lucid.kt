@@ -3,9 +3,9 @@ package org.afterlike.lucid.core
 import best.azura.eventbus.core.EventBus
 import net.minecraftforge.client.ClientCommandHandler
 import org.afterlike.lucid.check.handler.CheckHandler
+import org.afterlike.lucid.core.command.LucidCommand
 import org.afterlike.lucid.core.handler.ConfigHandler
 import org.afterlike.lucid.core.handler.DelayedTaskHandler
-import org.afterlike.lucid.core.command.LucidCommand
 import org.apache.logging.log4j.LogManager
 
 class Lucid {
@@ -29,7 +29,7 @@ class Lucid {
 
         checkHandler.initialize()
 
-        logger.info("Initialized Lucid in {}ms.", String.format("%.2f", (System.nanoTime() - start) / 1_000_000.0));
+        logger.info("Initialized Lucid in {}ms.", String.format("%.2f", (System.nanoTime() - start) / 1_000_000.0))
     }
 
     fun lateInitialize() {

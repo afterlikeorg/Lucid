@@ -8,13 +8,12 @@ import net.minecraft.event.HoverEvent
 import net.minecraft.util.ChatComponentText
 import net.minecraft.util.ChatStyle
 import net.minecraft.util.MathHelper
-import org.afterlike.lucid.core.handler.PlayerSampleHandler
-import org.afterlike.lucid.core.handler.ConfigHandler
 import org.afterlike.lucid.core.event.network.ReceivePacketEvent
 import org.afterlike.lucid.core.event.world.EntityJoinEvent
 import org.afterlike.lucid.core.event.world.EntityLeaveEvent
+import org.afterlike.lucid.core.handler.ConfigHandler
+import org.afterlike.lucid.core.handler.PlayerSampleHandler
 import org.afterlike.lucid.util.ChatUtil
-import org.apache.logging.log4j.LogManager
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.abs
@@ -22,8 +21,6 @@ import kotlin.math.max
 import kotlin.math.sqrt
 
 abstract class BaseCheck {
-
-    private val logger = LogManager.getLogger(BaseCheck::class.java)
 
     // check information
     abstract val name: String
@@ -40,36 +37,32 @@ abstract class BaseCheck {
 
     // event handlers
     @EventHandler
-    open fun onReceivePacket(event: ReceivePacketEvent) {}
-    
+    open fun onReceivePacket(event: ReceivePacketEvent) {
+    }
+
     open fun onPlayerJoin(event: EntityJoinEvent) {}
-    
+
     open fun onPlayerLeave(event: EntityLeaveEvent) {}
-    
+
     abstract fun onCheckRun(target: EntityPlayer)
 
     @EventHandler
     fun onEntityJoin(event: EntityJoinEvent) {
         if (event.entity !is EntityPlayer) return
-
         onPlayerJoin(event)
     }
 
     @EventHandler
     fun onEntityLeave(event: EntityLeaveEvent) {
         if (event.entity !is EntityPlayer) return
-        
+
         val player = event.entity
-        
+
         onPlayerLeave(event)
 
-        try {
-            playerLastFlagMap.remove(player.uniqueID)
-            playerViolationLevelMap.remove(player.uniqueID)
-            PlayerSampleHandler.removePlayer(player)
-        } catch (e: Exception) {
-            logger.error("Error cleaning up player data in {}: {}", player.name, e.message)
-        }
+        playerLastFlagMap.remove(player.uniqueID)
+        playerViolationLevelMap.remove(player.uniqueID)
+        PlayerSampleHandler.removePlayer(player)
     }
 
     fun getPlayerVL(player: EntityPlayer): Double {
@@ -86,12 +79,13 @@ abstract class BaseCheck {
 
         setPlayerVL(player, newVL)
 
-        if (ConfigHandler.verboseMode.value) {
+        if (ConfigHandler.verboseMode) {
             val displayName = player.displayName?.formattedText ?: player.name
-
             val verboseMsg =
                 "${ConfigHandler.getFormattedPrefix()}§cVerbose: $displayName §7failed §f$name §7($reason) [VL: +$amount, Total: ${
-                    "%.1f".format(newVL)
+                    "%.1f".format(
+                        newVL
+                    )
                 }]"
             ChatUtil.sendMessage(verboseMsg)
         }
@@ -116,14 +110,14 @@ abstract class BaseCheck {
 
         val currentTime = System.currentTimeMillis()
         val lastFlagTime = playerLastFlagMap[uuid] ?: 0L
-        val cooldownMillis = ConfigHandler.flagCooldown.value * 1000L
+        val cooldownMillis = ConfigHandler.flagCooldown * 1000L
 
-        val vlText = if (ConfigHandler.showVLInFlag.value) " §7[VL:${violationLevelThreshold}]" else ""
+        val vlText = if (ConfigHandler.showVLInFlag) " §7[VL:${violationLevelThreshold}]" else ""
         val messageBase =
-            ChatComponentText("${ConfigHandler.getFormattedPrefix()}$displayName §7failed §${ConfigHandler.messageColor.value}$name$vlText")
+            ChatComponentText("${ConfigHandler.getFormattedPrefix()}$displayName §7failed §${ConfigHandler.messageColor}$name$vlText")
 
         if (currentTime - lastFlagTime >= cooldownMillis) {
-            if (ConfigHandler.showWDR.value) {
+            if (ConfigHandler.showWDR) {
                 val wdrButton = ChatComponentText(" §c[WDR]")
                 val wdrStyle = ChatStyle()
                     .setChatClickEvent(ClickEvent(ClickEvent.Action.RUN_COMMAND, "/wdr $regularName cheating"))
@@ -139,20 +133,18 @@ abstract class BaseCheck {
 
             ChatUtil.sendMessage(messageBase)
 
-            if (ConfigHandler.playSoundOnFlag.value) {
+            if (ConfigHandler.playSoundOnFlag) {
                 mc.thePlayer.playSound("note.pling", 1.0f, 1.0f)
             }
         }
 
         playerLastFlagMap[uuid] = currentTime
-
     }
 
     protected fun getMoveAngle(deltaX: Double, deltaZ: Double): Float {
         if (abs(deltaX) < 1e-8 && abs(deltaZ) < 1e-8) {
             return 0f
         }
-
         return (MathHelper.atan2(deltaZ, deltaX).toFloat() * 180.0f / Math.PI.toFloat()) - 90.0f
     }
 

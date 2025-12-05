@@ -21,7 +21,7 @@ class AutoBlockCheck : BaseCheck() {
         val previous = swingProgress[target] ?: 0f
 
         if (isBlocking && current > 0f && previous == 0f) {
-            val heldItemName = target.heldItem?.displayName ?: "unknown item"
+            val heldItemName = target.heldItem.displayName
 
             val vlMultiplier = when {
                 current > 0.7f -> 7.0

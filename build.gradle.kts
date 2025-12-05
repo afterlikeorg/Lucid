@@ -70,6 +70,7 @@ dependencies {
 
     shade(kotlin("stdlib-jdk8"))
     shade("com.github.azura-client:Azura-Event-Bus:3.1.0")
+    shade("com.google.code.gson:gson:2.13.2")
 
     shade("org.spongepowered:mixin:0.7.11-SNAPSHOT") {
         isTransitive = false
@@ -112,9 +113,9 @@ tasks {
             }
         }
 
-
         fun relocate(name: String) = relocate(name, "org.afterlike.lucid.lib.$name")
         relocate("best.azura.eventbus")
+        relocate("com.google.gson")
     }
 
     jar {
