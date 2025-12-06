@@ -2,20 +2,29 @@ package org.afterlike.lucid.check.impl
 
 import net.minecraft.entity.player.EntityPlayer
 import net.minecraft.item.ItemBlock
-import org.afterlike.lucid.check.api.BaseCheck
+import org.afterlike.lucid.check.api.AbstractCheck
 import org.afterlike.lucid.core.event.world.EntityLeaveEvent
-import org.afterlike.lucid.core.handler.PlayerSampleHandler
-import org.afterlike.lucid.core.type.PlayerSample
+import org.afterlike.lucid.data.context.impl.PlayerContext
+import org.afterlike.lucid.data.handler.impl.PlayerHandler
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.min
 import kotlin.math.sqrt
 
-class ScaffoldCheck : BaseCheck() {
+// TODO: rewrite specifically for telly patterns
+class ScaffoldCheck : AbstractCheck() {
     override val name = "Scaffold"
     override val description = "Detects illegal bridging patterns"
     override var violationLevelThreshold = 12
+
+    override val decayConfig = DecayConfig(
+        baseRate = 0.3,
+        mediumRate = 0.5,
+        highRate = 0.6,
+        criticalRate = 0.75,
+        resetThreshold = 0.2
+    )
 
     private val consecutiveViolations = ConcurrentHashMap<EntityPlayer, Int>()
     private val lastViolationType = ConcurrentHashMap<EntityPlayer, String>()
@@ -24,27 +33,35 @@ class ScaffoldCheck : BaseCheck() {
     override fun onCheckRun(target: EntityPlayer) {
         if (target === mc.thePlayer || target.isRiding) return
 
-        val samples = PlayerSampleHandler.getAllSamples(target)
-        if (samples.size < 4) return
+        val data = PlayerHandler.get(target) ?: return
+        val history = data.getPlayerHistory()
+        if (history.size < 4) return
 
-        val currentSample = samples.last()
-        val tick = currentSample.tick
-        val pitch = currentSample.pitch.toDouble()
+        val current = data.player
+        val tick = current.tick
+        val pitch = current.pitch.toDouble()
 
-        val dx = currentSample.deltaX * 20.0
-        val dz = currentSample.deltaZ * 20.0
+        val dx = current.deltaX * 20.0
+        val dz = current.deltaZ * 20.0
         val speedXZsq = dx * dx + dz * dz
         val speedXZ = sqrt(speedXZsq)
 
-        val speedY = (samples[3].posY - samples[2].posY) * 20.0
-        val avgAccelY = 50.0 * (samples[0].posY - samples[1].posY - samples[2].posY + samples[3].posY)
+        val h3 = history.getOrNull(history.size - 1)
+        val h2 = history.getOrNull(history.size - 2)
+        val h1 = history.getOrNull(history.size - 3)
+        val h0 = history.getOrNull(history.size - 4)
 
-        val angleDiff = abs(getMoveLookAngleDiff(currentSample))
+        if (h0 == null || h1 == null || h2 == null || h3 == null) return
+
+        val speedY = (h3.posY - h2.posY) * 20.0
+        val avgAccelY = 50.0 * (h0.posY - h1.posY - h2.posY + h3.posY)
+
+        val angleDiff = abs(getMoveLookAngleDiff(current))
 
         var flagged = false
         var checkType = ""
 
-        if (target.isSwingInProgress && target.hurtTime == 0 &&
+        if (current.isSwingInProgress && current.hurtTime == 0 &&
             pitch > 50.0 && speedXZsq > 9.0 &&
             target.heldItem?.item is ItemBlock &&
             angleDiff > 165.0 && speedXZsq < 100.0 &&
@@ -65,10 +82,7 @@ class ScaffoldCheck : BaseCheck() {
                 severity =
                     (pitchFactor * 0.3 + angleFactor * 0.3 + ySpeedFactor * 0.3 + accelFactor * 0.1).coerceIn(0.0, 1.0)
                 baseVL = 3.0 + (severity * 3.0)
-            } else if (speedY in -1.0..4.0 &&
-                abs(speedY) > 0.005 &&
-                speedXZsq > 25.0
-            ) {
+            } else if (speedY in -1.0..4.0 && abs(speedY) > 0.005 && speedXZsq > 25.0) {
                 checkType = "horizontal"
 
                 val hSpeedFactor = ((speedXZ - 5.0) / 5.0).coerceIn(0.0, 1.0)
@@ -82,9 +96,7 @@ class ScaffoldCheck : BaseCheck() {
                 val lastTime = lastViolationTime.getOrDefault(target, 0L)
                 val consecutive: Int = if (lastType == checkType && (tick - lastTime) < 40) {
                     consecutiveViolations.getOrDefault(target, 0) + 1
-                } else {
-                    0
-                }
+                } else 0
                 consecutiveViolations[target] = consecutive
                 lastViolationType[target] = checkType
                 lastViolationTime[target] = tick
@@ -103,47 +115,25 @@ class ScaffoldCheck : BaseCheck() {
                     consecutive,
                     finalVL
                 )
-
                 addVL(target, finalVL, reason)
                 flagged = true
             }
         }
 
         if (!flagged) {
-            val currentVL = getPlayerVL(target)
-            if (currentVL > 0) {
-                val decayRate = when {
-                    currentVL > violationLevelThreshold * 0.75 -> 0.75
-                    currentVL > violationLevelThreshold * 0.5 -> 0.6
-                    currentVL > violationLevelThreshold * 0.25 -> 0.5
-                    else -> 0.3
-                }
-
-                decayVL(target, decayRate)
-
-                if (currentVL <= violationLevelThreshold * 0.2 && tick - lastViolationTime.getOrDefault(
-                        target,
-                        0L
-                    ) > 60
-                ) {
-                    consecutiveViolations[target] = 0
-                }
+            val shouldReset = handleNoViolation(target)
+            val timeSinceViolation = tick - lastViolationTime.getOrDefault(target, 0L)
+            if (shouldReset && timeSinceViolation > 60) {
+                consecutiveViolations[target] = 0
             }
         }
     }
 
     private fun buildStandardReason(
-        type: String,
-        pitch: Double,
-        speedXZ: Double,
-        angleDiff: Double,
-        speedY: Double,
-        avgAccelY: Double,
-        severity: Double,
-        consecutive: Int,
-        vlAmount: Double
+        type: String, pitch: Double, speedXZ: Double, angleDiff: Double,
+        speedY: Double, avgAccelY: Double, severity: Double, consecutive: Int, vlAmount: Double
     ): String {
-        val itemName = mc.thePlayer.heldItem?.displayName ?: "unknown block"
+        val itemName = mc.thePlayer?.heldItem?.displayName ?: "unknown block"
 
         return "scaffold-$type | pitch=${"%.1f".format(pitch)}° | angle=${"%.1f".format(angleDiff)}° | " +
                 "speedXZ=${"%.2f".format(speedXZ)} | speedY=${"%.2f".format(speedY)} | " +
@@ -153,11 +143,11 @@ class ScaffoldCheck : BaseCheck() {
 
     private fun isAlmostZero(d: Double) = abs(d) < 0.001
 
-    private fun getMoveLookAngleDiff(sample: PlayerSample): Double {
-        val dx = sample.deltaX
-        val dz = sample.deltaZ
+    private fun getMoveLookAngleDiff(ctx: PlayerContext): Double {
+        val dx = ctx.deltaX
+        val dz = ctx.deltaZ
         val move = Math.toDegrees(atan2(dz, dx)) - 90.0
-        val look = sample.yaw.toDouble()
+        val look = ctx.yaw.toDouble()
         var diff = ((move - look) % 360.0 + 360.0) % 360.0
         if (diff > 180.0) diff -= 360.0
         return diff
@@ -165,7 +155,6 @@ class ScaffoldCheck : BaseCheck() {
 
     override fun onPlayerLeave(event: EntityLeaveEvent) {
         val player = event.entity
-
         consecutiveViolations.remove(player)
         lastViolationType.remove(player)
         lastViolationTime.remove(player)

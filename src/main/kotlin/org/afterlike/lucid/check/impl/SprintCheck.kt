@@ -1,10 +1,10 @@
 package org.afterlike.lucid.check.impl
 
 import net.minecraft.entity.player.EntityPlayer
-import org.afterlike.lucid.check.api.BaseCheck
+import org.afterlike.lucid.check.api.AbstractCheck
 
 // todo: completely rewrite
-class SprintCheck : BaseCheck() {
+class SprintCheck : AbstractCheck() {
     override val name = "Sprint"
     override val description = "Detects illegal sprinting patterns."
 

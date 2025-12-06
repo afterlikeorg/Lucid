@@ -12,7 +12,6 @@ import org.afterlike.lucid.core.event.network.ReceivePacketEvent
 import org.afterlike.lucid.core.event.world.EntityJoinEvent
 import org.afterlike.lucid.core.event.world.EntityLeaveEvent
 import org.afterlike.lucid.core.handler.ConfigHandler
-import org.afterlike.lucid.core.handler.PlayerSampleHandler
 import org.afterlike.lucid.util.ChatUtil
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
@@ -20,7 +19,7 @@ import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.sqrt
 
-abstract class BaseCheck {
+abstract class AbstractCheck {
 
     // check information
     abstract val name: String
@@ -34,6 +33,17 @@ abstract class BaseCheck {
     // player tracking
     private val playerLastFlagMap = ConcurrentHashMap<UUID, Long>()
     private val playerViolationLevelMap = ConcurrentHashMap<UUID, Double>()
+
+    // decay config, override to customize
+    open val decayConfig: DecayConfig = DecayConfig()
+
+    data class DecayConfig(
+        val baseRate: Double = 0.5,
+        val mediumRate: Double = 0.8, // when VL > 25% of threshold
+        val highRate: Double = 1.2, // when VL > 50% of threshold
+        val criticalRate: Double = 1.5, // when VL > 80% of threshold
+        val resetThreshold: Double = 0.2 // reset consecutive at this % of threshold
+    )
 
     // event handlers
     @EventHandler
@@ -62,7 +72,6 @@ abstract class BaseCheck {
 
         playerLastFlagMap.remove(player.uniqueID)
         playerViolationLevelMap.remove(player.uniqueID)
-        PlayerSampleHandler.removePlayer(player)
     }
 
     fun getPlayerVL(player: EntityPlayer): Double {
@@ -96,11 +105,32 @@ abstract class BaseCheck {
         }
     }
 
-    protected fun decayVL(player: EntityPlayer, amount: Double) {
+    // decay based on % to threshold
+    protected fun decayVL(player: EntityPlayer, config: DecayConfig = decayConfig): Boolean {
         val currentVL = getPlayerVL(player)
-        if (currentVL > 0) {
-            setPlayerVL(player, max(0.0, currentVL - amount))
+        if (currentVL <= 0) return true
+
+        val vlPercent = currentVL / violationLevelThreshold
+
+        val rate = when {
+            vlPercent > 0.8 -> config.criticalRate
+            vlPercent > 0.5 -> config.highRate
+            vlPercent > 0.25 -> config.mediumRate
+            else -> config.baseRate
         }
+
+        val newVL = max(0.0, currentVL - rate)
+        setPlayerVL(player, newVL)
+
+        return newVL <= violationLevelThreshold * config.resetThreshold
+    }
+
+
+    // call this in onCheckRun when no violation occurred
+    protected fun handleNoViolation(player: EntityPlayer): Boolean {
+        val currentVL = getPlayerVL(player)
+        if (currentVL <= 0) return false
+        return decayVL(player)
     }
 
     private fun flag(player: EntityPlayer, reason: String) {

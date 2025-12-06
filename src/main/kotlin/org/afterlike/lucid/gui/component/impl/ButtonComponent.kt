@@ -2,7 +2,7 @@ package org.afterlike.lucid.gui.component.impl
 
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.Gui
-import org.afterlike.lucid.check.api.BaseCheck
+import org.afterlike.lucid.check.api.AbstractCheck
 import org.afterlike.lucid.gui.component.base.BaseComponent
 import org.afterlike.lucid.util.ThemeUtil
 import java.awt.Color
@@ -15,7 +15,7 @@ class ButtonComponent(
     height: Int,
     val text: String,
     val action: ButtonAction,
-    val check: BaseCheck? = null,
+    val check: AbstractCheck? = null,
     val enabled: Boolean = true,
     val description: String? = null
 ) : BaseComponent(id, x, y, width, height) {
@@ -55,7 +55,7 @@ class ButtonComponent(
 
     enum class ButtonAction {
         TOGGLE, DEC, INC,
-        TOGGLE_SOUND, TOGGLE_VERBOSE,
+        TOGGLE_SOUND, TOGGLE_VERBOSE, TOGGLE_DEBUG,
         COOLDOWN_DEC, COOLDOWN_INC,
         COLOR_PREV, COLOR_NEXT,
         TOGGLE_BOLD,

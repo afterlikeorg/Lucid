@@ -5,15 +5,23 @@ import net.minecraft.item.ItemBow
 import net.minecraft.item.ItemFood
 import net.minecraft.item.ItemPotion
 import net.minecraft.item.ItemSword
-import org.afterlike.lucid.check.api.BaseCheck
+import org.afterlike.lucid.check.api.AbstractCheck
 import org.afterlike.lucid.core.event.world.EntityLeaveEvent
-import org.afterlike.lucid.core.handler.PlayerSampleHandler
+import org.afterlike.lucid.data.handler.impl.PlayerHandler
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.min
 
-class NoSlowCheck : BaseCheck() {
+class NoSlowCheck : AbstractCheck() {
     override val name = "NoSlow"
     override val description = "Detects illegal movement while using items (eating, drinking, etc.)"
+
+    override val decayConfig = DecayConfig(
+        baseRate = 0.2,
+        mediumRate = 0.3,
+        highRate = 0.4,
+        criticalRate = 0.5,
+        resetThreshold = 0.2
+    )
 
     private val lastUsingTick = ConcurrentHashMap<EntityPlayer, Long>()
     private val lastItemSwapTick = ConcurrentHashMap<EntityPlayer, Long>()
@@ -24,11 +32,12 @@ class NoSlowCheck : BaseCheck() {
     override fun onCheckRun(target: EntityPlayer) {
         if (target == mc.thePlayer) return
 
-        val currentSample = PlayerSampleHandler.getLatestSample(target) ?: return
-        val currentTick = currentSample.tick
+        val data = PlayerHandler.get(target) ?: return
+        val ctx = data.player
+        val currentTick = ctx.tick
 
-        val isSprinting = target.isSprinting
-        val isUsingItem = target.isUsingItem
+        val isSprinting = ctx.isSprinting
+        val isUsingItem = ctx.isUsingItem
         val isRiding = target.ridingEntity != null
         val heldItem = target.heldItem
 
@@ -66,7 +75,7 @@ class NoSlowCheck : BaseCheck() {
                         else -> "item"
                     }
 
-                    val speed = calculateSpeed(currentSample.deltaX, currentSample.deltaZ)
+                    val speed = calculateSpeed(ctx.deltaX, ctx.deltaZ)
 
                     val consecutive = consecutiveViolations.getOrDefault(target, 0) + 1
                     consecutiveViolations[target] = consecutive
@@ -78,39 +87,29 @@ class NoSlowCheck : BaseCheck() {
                     val itemName = heldItem?.displayName ?: "unknown item"
 
                     addVL(
-                        target,
-                        finalVL,
-                        "no-slowdown | item=$itemName ($itemType) | speed=${"%.2f".format(speed)} | " +
-                                "sprinting=true | consecutive=$consecutive | vl=${"%.1f".format(finalVL)}"
+                        target, finalVL,
+                        "no-slowdown | item=$itemName ($itemType) | speed=${"%.2f".format(speed)} | sprinting=true | consecutive=$consecutive | vl=${
+                            "%.1f".format(
+                                finalVL
+                            )
+                        }"
                     )
+                    return
                 }
             }
-        } else {
-            val currentVL = getPlayerVL(target)
-            if (currentVL > 0) {
-                val decayRate = when {
-                    currentVL > 7.5 -> 0.5
-                    currentVL > 5.0 -> 0.4
-                    currentVL > 2.5 -> 0.3
-                    else -> 0.2
-                }
+        }
 
-                decayVL(target, decayRate)
-
-                if (currentVL <= violationLevelThreshold * 0.2) {
-                    consecutiveViolations[target] = 0
-                }
-            }
+        if (handleNoViolation(target)) {
+            consecutiveViolations[target] = 0
         }
     }
 
     override fun onPlayerLeave(event: EntityLeaveEvent) {
         val player = event.entity
-
         lastUsingTick.remove(player)
         lastItemSwapTick.remove(player)
         lastStopUsingTick.remove(player)
         lastUsedItemName.remove(player)
         consecutiveViolations.remove(player)
     }
-} 
+}

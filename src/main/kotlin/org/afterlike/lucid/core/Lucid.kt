@@ -6,6 +6,10 @@ import org.afterlike.lucid.check.handler.CheckHandler
 import org.afterlike.lucid.core.command.LucidCommand
 import org.afterlike.lucid.core.handler.ConfigHandler
 import org.afterlike.lucid.core.handler.DelayedTaskHandler
+import org.afterlike.lucid.data.handler.impl.InteractionHandler
+import org.afterlike.lucid.data.handler.impl.NetworkHandler
+import org.afterlike.lucid.data.handler.impl.PlayerHandler
+import org.afterlike.lucid.data.handler.impl.WorldHandler
 import org.apache.logging.log4j.LogManager
 
 class Lucid {
@@ -26,6 +30,12 @@ class Lucid {
 
         eventBus.subscribe(DelayedTaskHandler)
         eventBus.subscribe(CheckHandler)
+
+        // data handlers
+        eventBus.subscribe(PlayerHandler)
+        eventBus.subscribe(NetworkHandler)
+        eventBus.subscribe(WorldHandler)
+        eventBus.subscribe(InteractionHandler)
 
         checkHandler.initialize()
 

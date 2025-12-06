@@ -411,6 +411,11 @@ class LucidGuiScreen : GuiScreen() {
                 initGui()
             }
 
+            ButtonComponent.ButtonAction.TOGGLE_DEBUG -> {
+                ConfigHandler.debugMode = !ConfigHandler.debugMode
+                initGui()
+            }
+
             ButtonComponent.ButtonAction.COOLDOWN_DEC -> {
                 if (ConfigHandler.flagCooldown > 1) {
                     ConfigHandler.flagCooldown--

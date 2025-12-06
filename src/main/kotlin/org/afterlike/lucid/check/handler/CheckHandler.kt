@@ -3,13 +3,13 @@ package org.afterlike.lucid.check.handler
 import best.azura.eventbus.handler.EventHandler
 import net.minecraft.client.Minecraft
 import net.minecraft.entity.player.EntityPlayer
-import org.afterlike.lucid.check.api.BaseCheck
+import org.afterlike.lucid.check.api.AbstractCheck
 import org.afterlike.lucid.check.impl.*
 import org.afterlike.lucid.core.Lucid
 import org.afterlike.lucid.core.event.game.GameTickEvent
 import org.afterlike.lucid.core.event.world.WorldUnloadEvent
-import org.afterlike.lucid.core.handler.PlayerSampleHandler
 import org.afterlike.lucid.core.type.EventPhase
+import org.afterlike.lucid.data.handler.impl.PlayerHandler
 import org.apache.logging.log4j.LogManager
 import java.util.*
 import java.util.concurrent.*
@@ -19,7 +19,7 @@ object CheckHandler {
 
     private val logger = LogManager.getLogger(CheckHandler::class.java)
 
-    private val checks = CopyOnWriteArrayList<BaseCheck>()
+    private val checks = CopyOnWriteArrayList<AbstractCheck>()
     private val activePlayerSet = Collections.newSetFromMap(ConcurrentHashMap<EntityPlayer, Boolean>())
     private val activeFutureMap = ConcurrentHashMap<EntityPlayer, Future<*>>()
 
@@ -55,7 +55,6 @@ object CheckHandler {
         )
 
         var count = 0
-
         for (constructor in checkConstructors) {
             val check = constructor()
             registerCheck(check)
@@ -74,18 +73,16 @@ object CheckHandler {
         val theWorld = mc.theWorld ?: return
 
         val currentTime = System.currentTimeMillis()
-        val shouldCollectSamples = currentTime - lastSampleCollectionTime >= SAMPLE_THROTTLE_MS
+        if (currentTime - lastSampleCollectionTime < SAMPLE_THROTTLE_MS) return
 
-        if (shouldCollectSamples) {
-            lastSampleCollectionTime = currentTime
-            activePlayerSet.clear()
+        lastSampleCollectionTime = currentTime
+        activePlayerSet.clear()
 
-            for (entity in theWorld.playerEntities) {
-                if (entity !== thePlayer && entity.isEntityAlive) {
-                    activePlayerSet.add(entity)
-                    PlayerSampleHandler.collectSample(entity)
-                    checkPlayer(entity)
-                }
+        for (entity in theWorld.playerEntities) {
+            if (entity !== thePlayer && entity.isEntityAlive) {
+                activePlayerSet.add(entity)
+                PlayerHandler.update(entity)
+                checkPlayer(entity)
             }
         }
     }
@@ -99,7 +96,6 @@ object CheckHandler {
         }
         activeFutureMap.clear()
         activePlayerSet.clear()
-        PlayerSampleHandler.removePlayer(null)
     }
 
     private fun checkPlayer(player: EntityPlayer) {
@@ -125,12 +121,12 @@ object CheckHandler {
         }
     }
 
-    fun registerCheck(check: BaseCheck) {
+    fun registerCheck(check: AbstractCheck) {
         if (!checks.contains(check)) {
             Lucid.INSTANCE.eventBus.subscribe(check)
             checks.add(check)
         }
     }
 
-    fun getChecks(): List<BaseCheck> = checks.toList()
+    fun getChecks(): List<AbstractCheck> = checks.toList()
 }

@@ -31,6 +31,12 @@ object ConfigHandler {
             config.settings.verboseMode = value
         }
 
+    var debugMode: Boolean
+        get() = config.settings.debugMode
+        set(value) {
+            config.settings.debugMode = value
+        }
+
     var flagCooldown: Int
         get() = config.settings.flagCooldown
         set(value) {
@@ -131,6 +137,7 @@ object ConfigHandler {
     data class SettingsConfig(
         var playSoundOnFlag: Boolean = true,
         var verboseMode: Boolean = false,
+        var debugMode: Boolean = false,
         var flagCooldown: Int = 5
     )
 
