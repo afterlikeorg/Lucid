@@ -143,7 +143,7 @@ class LucidGuiScreen : GuiScreen() {
             centerX,
             creditY,
             "View Lucid on GitHub ↗",
-            "https://github.com/m-afterlike/Lucid",
+            "https://github.com/polariscli/Lucid",
             this,
             centered = true
         )
