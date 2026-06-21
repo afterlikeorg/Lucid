@@ -21,6 +21,11 @@ public class MinecraftMixin {
 		Lucid.get().lateInitialize();
 	}
 
+	@Inject(method = "runTick", at = @At("HEAD"))
+	private void lucid$runTick$head(final CallbackInfo ci) {
+		Lucid.get().getEventBus().post(new GameTickEvent(EventPhase.PRE));
+	}
+
 	@Inject(method = "runTick", at = @At("RETURN"))
 	private void lucid$runTick$return(final CallbackInfo ci) {
 		Lucid.get().getEventBus().post(new GameTickEvent(EventPhase.POST));

@@ -1,6 +1,7 @@
 package org.afterlike.lucid;
 
 import java.util.Objects;
+import org.afterlike.lucid.task.DelayedTaskHandler;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import re.tsuku.fastbus.FastBus;
@@ -16,7 +17,7 @@ public class Lucid {
 
 	public void initialize() {
 		final long startTime = System.nanoTime();
-		// initialization logic
+		eventBus.subscribe(DelayedTaskHandler.get());
 		LOGGER.info("Initialized in {}ms.", (System.nanoTime() - startTime) / 1_000_000);
 	}
 
