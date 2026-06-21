@@ -1,24 +1,30 @@
-@file:Suppress("UnstableApiUsage")
-
 import dev.architectury.pack200.java.Pack200Adapter
 import net.fabricmc.loom.task.RemapJarTask
 import org.apache.commons.lang3.SystemUtils
 
+// Buildscript based on https://github.com/lineargraph/Forge1.8.9Template (Unlicense)
+
+// Plugins:
 plugins {
     idea
     java
+    id("net.kyori.blossom") version "2.2.0"
     id("gg.essential.loom") version "0.10.0.+"
-    id("dev.architectury.architectury-pack200") version "0.1.3"
+    id("com.diffplug.spotless") version "8.1.0"
     id("com.github.johnrengelman.shadow") version "8.1.1"
-    kotlin("jvm") version "2.0.0"
+    id("dev.architectury.architectury-pack200") version "0.1.3"
 }
 
+// Toolchains:
 java {
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
     toolchain.languageVersion.set(JavaLanguageVersion.of(8))
 }
 
+// Minecraft configuration:
 loom {
-    log4jConfigs.from(file("log4j2.xml"))
+    log4jConfigs.from(file("extras/log4j2.xml"))
     launchConfigs {
         "client" {
             property("mixin.debug", "true")
@@ -28,6 +34,7 @@ loom {
     runConfigs {
         "client" {
             if (SystemUtils.IS_OS_MAC_OSX) {
+                // This argument causes a crash on macOS
                 vmArgs.remove("-XstartOnFirstThread")
             }
         }
@@ -35,26 +42,52 @@ loom {
     }
     forge {
         pack200Provider.set(Pack200Adapter())
-        mixinConfig("mixins.lucid.json")
+        mixinConfig("mixins.examplemod.json")
+
     }
+    @Suppress("UnstableApiUsage")
     mixin {
-        defaultRefmapName.set("mixins.lucid.refmap.json")
+        defaultRefmapName.set("mixins.examplemod.refmap.json")
     }
 }
 
-tasks.compileJava {
-    dependsOn(tasks.processResources)
+// Blossom configuration:
+sourceSets {
+    main {
+        blossom {
+            resources {
+                property("version", project.version.toString())
+            }
+            javaSources {
+                property("version", project.version.toString())
+            }
+        }
+        output.setResourcesDir(sourceSets.main.flatMap { it.java.classesDirectory })
+    }
 }
 
-sourceSets.main {
-    output.setResourcesDir(sourceSets.main.flatMap { it.java.classesDirectory })
-    java.srcDir(layout.projectDirectory.dir("src/main/kotlin"))
-    kotlin.destinationDirectory.set(java.destinationDirectory)
+idea {
+    module {
+        generatedSourceDirs.add(file("build/generated/sources/blossom/main/java"))
+    }
 }
 
+// Spotless Configuration:
+spotless {
+    java {
+        importOrder()
+        removeUnusedImports()
+        eclipse().configFile("extras/eclipse-formatter.xml")
+        formatAnnotations()
+
+        targetExclude("build/generated/**")
+    }
+}
+
+// Dependencies:
 repositories {
     mavenCentral()
-    maven("https://jitpack.io")
+    maven("https://maven.tsuku.re/releases")
     maven("https://repo.spongepowered.org/maven/")
     maven("https://pkgs.dev.azure.com/djtheredstoner/DevAuth/_packaging/public/maven/v1")
 }
@@ -68,10 +101,7 @@ dependencies {
     mappings("de.oceanlabs.mcp:mcp_stable:22-1.8.9")
     forge("net.minecraftforge:forge:1.8.9-11.15.1.2318-1.8.9")
 
-    shade(kotlin("stdlib-jdk8"))
-    shade("com.github.azura-client:Azura-Event-Bus:3.1.0")
-    shade("com.google.code.gson:gson:2.13.2")
-
+    shade("re.tsuku:fastbus:1.1.1")
     shade("org.spongepowered:mixin:0.7.11-SNAPSHOT") {
         isTransitive = false
     }
@@ -80,24 +110,32 @@ dependencies {
     runtimeOnly("me.djtheredstoner:DevAuth-forge-legacy:1.2.1")
 }
 
-
+// Tasks:
 tasks {
     withType(JavaCompile::class) {
         options.encoding = "UTF-8"
+        dependsOn("generateJavaTemplates", "generateResourceTemplates")
+    }
+
+    withType(ProcessResources::class) {
+        dependsOn("generateResourceTemplates")
     }
 
     withType(Jar::class) {
-        archiveBaseName.set("Lucid")
+        archiveBaseName.set("ExampleMod")
+        archiveVersion.set(project.version.toString())
+        archiveClassifier.set("without-deps")
+        destinationDirectory.set(layout.buildDirectory.dir("intermediates"))
         manifest.attributes.run {
             this["FMLCorePluginContainsFMLMod"] = "true"
             this["ForceLoadAsMod"] = "true"
             this["TweakClass"] = "org.spongepowered.asm.launch.MixinTweaker"
-            this["MixinConfigs"] = "mixins.lucid.json"
+            this["MixinConfigs"] = "mixins.examplemod.json"
         }
     }
 
     val remapJar = named<RemapJarTask>("remapJar") {
-        archiveClassifier.set("")
+        archiveClassifier.set("forge")
         from(shadowJar)
         input.set(shadowJar.get().archiveFile)
     }
@@ -113,14 +151,9 @@ tasks {
             }
         }
 
-        fun relocate(name: String) = relocate(name, "org.afterlike.lucid.lib.$name")
-        relocate("best.azura.eventbus")
-        relocate("com.google.gson")
-    }
-
-    jar {
-        archiveClassifier.set("without-deps")
-        destinationDirectory.set(layout.buildDirectory.dir("intermediates"))
+        // Relocate any dependencies here:
+        fun relocateInside(name: String) = relocate(name, "org.afterlike.examplemod.lib.$name")
+        relocateInside("re.tsuku.fastbus")
     }
 
     assemble.get().dependsOn(remapJar)

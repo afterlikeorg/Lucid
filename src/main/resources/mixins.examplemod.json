@@ -1,0 +1,11 @@
+{
+  "package": "org.afterlike.examplemod.platform.mixin",
+  "refmap": "mixins.examplemod.refmap.json",
+  "minVersion": "0.7",
+  "compatibilityLevel": "JAVA_8",
+  "mixins": [],
+  "client": [
+    "minecraft.client.MinecraftMixin",
+    "minecraftforge.client.GuiIngameForgeMixin"
+  ]
+}

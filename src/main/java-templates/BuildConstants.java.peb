@@ -1,0 +1,5 @@
+package org.afterlike.examplemod;
+
+public final class BuildConstants {
+    public static final String VERSION = "{{ version }}";
+}

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="DEBUG">
+    <!-- Filter out Hypixel scoreboard and sound errors -->
+    <RegexFilter regex="Error executing task.*|Unable to play unknown soundEvent.*" onMatch="DENY" onMismatch="NEUTRAL"/>
+
+    <Appenders>
+        <Console name="SysOut" target="SYSTEM_OUT">
+            <PatternLayout pattern="%white{%d{HH:mm:ss SSS}} %highlight{%level} %blue{[%t]} %yellow{%logger{0}}: %msg%n%xEx"/>
+        </Console>
+    </Appenders>
+</Configuration>
