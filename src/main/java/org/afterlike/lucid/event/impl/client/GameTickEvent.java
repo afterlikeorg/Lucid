@@ -1,4 +1,4 @@
-package org.afterlike.lucid.event.impl;
+package org.afterlike.lucid.event.impl.client;
 
 import org.afterlike.lucid.event.api.EventPhase;
 import re.tsuku.fastbus.Event;

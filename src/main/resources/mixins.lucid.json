@@ -3,7 +3,10 @@
   "refmap": "mixins.lucid.refmap.json",
   "minVersion": "0.7",
   "compatibilityLevel": "JAVA_8",
-  "mixins": [],
+  "mixins": [
+    "minecraft.network.NetworkManagerMixin",
+    "minecraft.world.WorldMixin"
+  ],
   "client": [
     "minecraft.client.MinecraftMixin",
     "minecraftforge.client.GuiIngameForgeMixin"
