@@ -1,14 +1,14 @@
 [
   {
-    "modid": "examplemod",
-    "name": "ExampleMod",
+    "modid": "lucid",
+    "name": "Lucid",
     "description": "",
     "version": "{{ version }}",
     "mcversion": "1.8.9",
-    "url": "https://github.com/polariscli/ExampleMod",
+    "url": "https://github.com/zhgmx/Lucid",
     "updateUrl": "",
     "authorList": [
-      "You"
+      "zhgmx"
     ],
     "credits": "",
     "logoFile": "",

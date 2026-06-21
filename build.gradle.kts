@@ -42,12 +42,12 @@ loom {
     }
     forge {
         pack200Provider.set(Pack200Adapter())
-        mixinConfig("mixins.examplemod.json")
+        mixinConfig("mixins.lucid.json")
 
     }
     @Suppress("UnstableApiUsage")
     mixin {
-        defaultRefmapName.set("mixins.examplemod.refmap.json")
+        defaultRefmapName.set("mixins.lucid.refmap.json")
     }
 }
 
@@ -122,7 +122,7 @@ tasks {
     }
 
     withType(Jar::class) {
-        archiveBaseName.set("ExampleMod")
+        archiveBaseName.set("Lucid")
         archiveVersion.set(project.version.toString())
         archiveClassifier.set("without-deps")
         destinationDirectory.set(layout.buildDirectory.dir("intermediates"))
@@ -130,7 +130,7 @@ tasks {
             this["FMLCorePluginContainsFMLMod"] = "true"
             this["ForceLoadAsMod"] = "true"
             this["TweakClass"] = "org.spongepowered.asm.launch.MixinTweaker"
-            this["MixinConfigs"] = "mixins.examplemod.json"
+            this["MixinConfigs"] = "mixins.lucid.json"
         }
     }
 
@@ -152,7 +152,7 @@ tasks {
         }
 
         // Relocate any dependencies here:
-        fun relocateInside(name: String) = relocate(name, "org.afterlike.examplemod.lib.$name")
+        fun relocateInside(name: String) = relocate(name, "org.afterlike.lucid.lib.$name")
         relocateInside("re.tsuku.fastbus")
     }
 

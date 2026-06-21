@@ -1,4 +1,4 @@
-package org.afterlike.examplemod.event.impl;
+package org.afterlike.lucid.event.impl;
 
 import re.tsuku.fastbus.Event;
 

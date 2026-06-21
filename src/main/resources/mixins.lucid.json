@@ -1,6 +1,6 @@
 {
-  "package": "org.afterlike.examplemod.platform.mixin",
-  "refmap": "mixins.examplemod.refmap.json",
+  "package": "org.afterlike.lucid.platform.mixin",
+  "refmap": "mixins.lucid.refmap.json",
   "minVersion": "0.7",
   "compatibilityLevel": "JAVA_8",
   "mixins": [],

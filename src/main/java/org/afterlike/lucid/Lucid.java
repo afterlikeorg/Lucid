@@ -1,4 +1,4 @@
-package org.afterlike.examplemod;
+package org.afterlike.lucid;
 
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
@@ -7,12 +7,12 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import re.tsuku.fastbus.FastBus;
 
-public class ExampleMod {
+public class Lucid {
 	private static final Logger LOGGER = LogManager.getLogger();
-	private static final @Nullable ExampleMod INSTANCE = new ExampleMod();
-	private static final @NotNull String VERSION = org.afterlike.examplemod.BuildConstants.VERSION;
+	private static final @Nullable Lucid INSTANCE = new Lucid();
+	private static final @NotNull String VERSION = org.afterlike.lucid.BuildConstants.VERSION;
 	private final FastBus eventBus;
-	public ExampleMod() {
+	public Lucid() {
 		this.eventBus = new FastBus();
 	}
 
@@ -26,7 +26,7 @@ public class ExampleMod {
 		// late initialization logic
 	}
 
-	public static @NotNull ExampleMod get() {
+	public static @NotNull Lucid get() {
 		return Objects.requireNonNull(INSTANCE);
 	}
 

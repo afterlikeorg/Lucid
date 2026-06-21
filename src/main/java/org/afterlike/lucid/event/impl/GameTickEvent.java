@@ -1,6 +1,6 @@
-package org.afterlike.examplemod.event.impl;
+package org.afterlike.lucid.event.impl;
 
-import org.afterlike.examplemod.event.api.EventPhase;
+import org.afterlike.lucid.event.api.EventPhase;
 import re.tsuku.fastbus.Event;
 
 public class GameTickEvent implements Event {
