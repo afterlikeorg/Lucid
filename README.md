@@ -12,6 +12,4 @@ This repository is not a vanilla Forge example. It intentionally deviates from c
 
 ## License
 
-This project is licensed under the Unlicense.
-You may use, modify, or redistribute this project without restriction.
 See the [LICENSE](LICENSE) file for details.
